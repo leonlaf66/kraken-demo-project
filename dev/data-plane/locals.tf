@@ -1,7 +1,31 @@
+# =============================================================================
+# Data Sources
+# =============================================================================
+
 data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
 
-# Get Admin Password from Secrets Manager
+# VPC and Subnets - Using data sources instead of variables
+data "aws_vpc" "selected" {
+  tags = {
+    Name = "kraken-vpc-${var.env}"
+  }
+}
+
+data "aws_subnets" "private" {
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.selected.id]
+  }
+  filter {
+    name   = "tag:Type"
+    values = ["Private"]
+  }
+}
+
+# =============================================================================
+# Secrets Manager - Kafka Admin Credentials
+# =============================================================================
 
 data "aws_secretsmanager_secret" "kafka_admin" {
   name = var.msk_scram_secret_names["admin"]
@@ -11,9 +35,9 @@ data "aws_secretsmanager_secret_version" "kafka_admin" {
   secret_id = data.aws_secretsmanager_secret.kafka_admin.id
 }
 
-# =========================================================================
-# Secrets Manager - SCRAM Credentials
-# =========================================================================
+# =============================================================================
+# Secrets Manager - SCRAM Credentials for Connectors
+# =============================================================================
 
 data "aws_secretsmanager_secret" "debezium" {
   name = var.msk_scram_secret_names["debezium"]
@@ -39,9 +63,9 @@ data "aws_secretsmanager_secret_version" "s3_sink_public" {
   secret_id = data.aws_secretsmanager_secret.s3_sink_public.id
 }
 
-# =========================================================================
+# =============================================================================
 # Secrets Manager - Database Credentials
-# =========================================================================
+# =============================================================================
 
 data "aws_secretsmanager_secret" "database" {
   name = var.database_secret_name
@@ -51,16 +75,21 @@ data "aws_secretsmanager_secret_version" "database" {
   secret_id = data.aws_secretsmanager_secret.database.id
 }
 
-locals {
-#kafka
-  kafka_admin_creds = jsondecode(data.aws_secretsmanager_secret_version.kafka_admin.secret_string)
+# =============================================================================
+# Locals
+# =============================================================================
 
-#msk connect
+locals {
+  # AWS Context
   region     = data.aws_region.current.name
   account_id = data.aws_caller_identity.current.account_id
 
-  # MSK Bootstrap endpoint via Route53 (NLB backed)
-  msk_bootstrap_endpoint = var.msk_bootstrap_endpoint_route53
+  # Network (from data sources)
+  vpc_id     = data.aws_vpc.selected.id
+  subnet_ids = data.aws_subnets.private.ids
+
+  # MSK Bootstrap endpoint via NLB
+  msk_bootstrap_endpoint = var.msk_bootstrap_brokers_nlb
 
   # Topic naming
   cdc_topics_mnpi = [
@@ -77,6 +106,7 @@ locals {
   all_cdc_topics = concat(local.cdc_topics_mnpi, local.cdc_topics_public)
 
   # Parse credentials from Secrets Manager
+  kafka_admin_creds    = jsondecode(data.aws_secretsmanager_secret_version.kafka_admin.secret_string)
   debezium_creds       = jsondecode(data.aws_secretsmanager_secret_version.debezium.secret_string)
   s3_sink_mnpi_creds   = jsondecode(data.aws_secretsmanager_secret_version.s3_sink_mnpi.secret_string)
   s3_sink_public_creds = jsondecode(data.aws_secretsmanager_secret_version.s3_sink_public.secret_string)

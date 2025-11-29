@@ -1,6 +1,11 @@
+# =============================================================================
 # 1. Debezium CDC Source Connector
+# =============================================================================
+# Reads from PostgreSQL, writes to Kafka topics
+# =============================================================================
+
 module "debezium_cdc_source" {
-  source = "git::https://github.com/leonlaf66/kraken-demo-module/msk-connect?ref=main"
+  source = "git::https://github.com/leonlaf66/kraken-demo-module.git//msk-connect?ref=main"
 
   connector_name       = "debezium-postgres-cdc-${var.env}"
   env                  = var.env
@@ -9,11 +14,11 @@ module "debezium_cdc_source" {
   connector_type       = "source"
   kafkaconnect_version = "2.7.1"
 
-  # Network
-  vpc_id     = var.vpc_id
-  subnet_ids = var.private_subnet_ids
+  # Network - Using data sources
+  vpc_id     = local.vpc_id
+  subnet_ids = local.subnet_ids
 
-  # MSK - Route53 endpoint with SCRAM
+  # MSK - NLB endpoint with SCRAM
   msk_cluster_arn         = var.msk_cluster_arn
   msk_bootstrap_servers   = local.msk_bootstrap_endpoint
   msk_authentication_type = "NONE"
@@ -25,7 +30,7 @@ module "debezium_cdc_source" {
 
   # RDS Secret (for IAM permissions to read secret)
   rds_secret_arn      = data.aws_secretsmanager_secret.database.arn
-  secrets_kms_key_arn = var.secrets_kms_key_arn
+  secrets_kms_key_arn = null  # Database module uses its own KMS key
 
   # Plugin
   custom_plugin_arn        = var.debezium_plugin_arn
@@ -109,12 +114,14 @@ module "debezium_cdc_source" {
   common_tags           = var.common_tags
 }
 
-# =========================================================================
+# =============================================================================
 # 2. S3 Sink Connector - MNPI Zone
-# =========================================================================
+# =============================================================================
+# Reads MNPI topics, writes to S3 MNPI bucket
+# =============================================================================
 
 module "s3_sink_mnpi" {
-  source = "../../../tfm/modules/msk-connect"
+  source = "git::https://github.com/leonlaf66/kraken-demo-module.git//msk-connect?ref=main"
 
   connector_name       = "s3-sink-raw-mnpi-${var.env}"
   env                  = var.env
@@ -123,11 +130,11 @@ module "s3_sink_mnpi" {
   connector_type       = "sink"
   kafkaconnect_version = "2.7.1"
 
-  # Network
-  vpc_id     = var.vpc_id
-  subnet_ids = var.private_subnet_ids
+  # Network - Using data sources
+  vpc_id     = local.vpc_id
+  subnet_ids = local.subnet_ids
 
-  # MSK - Route53 endpoint with SCRAM
+  # MSK - NLB endpoint with SCRAM
   msk_cluster_arn         = var.msk_cluster_arn
   msk_bootstrap_servers   = local.msk_bootstrap_endpoint
   msk_authentication_type = "NONE"
@@ -203,12 +210,14 @@ module "s3_sink_mnpi" {
   common_tags           = var.common_tags
 }
 
-# =========================================================================
+# =============================================================================
 # 3. S3 Sink Connector - Public Zone
-# =========================================================================
+# =============================================================================
+# Reads Public topics, writes to S3 Public bucket
+# =============================================================================
 
 module "s3_sink_public" {
-  source = "../../../tfm/modules/msk-connect"
+  source = "git::https://github.com/leonlaf66/kraken-demo-module.git//msk-connect?ref=main"
 
   connector_name       = "s3-sink-raw-public-${var.env}"
   env                  = var.env
@@ -217,11 +226,11 @@ module "s3_sink_public" {
   connector_type       = "sink"
   kafkaconnect_version = "2.7.1"
 
-  # Network
-  vpc_id     = var.vpc_id
-  subnet_ids = var.private_subnet_ids
+  # Network - Using data sources
+  vpc_id     = local.vpc_id
+  subnet_ids = local.subnet_ids
 
-  # MSK - Route53 endpoint with SCRAM
+  # MSK - NLB endpoint with SCRAM
   msk_cluster_arn         = var.msk_cluster_arn
   msk_bootstrap_servers   = local.msk_bootstrap_endpoint
   msk_authentication_type = "NONE"

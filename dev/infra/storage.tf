@@ -1,5 +1,5 @@
 module "storage" {
-  source = "git::https://github.com/leonlaf66/kraken-demo-module/storage?ref=main"
+  source = "git::https://github.com/leonlaf66/kraken-demo-module.git//storage?ref=main"
 
   app_name    = var.app_name
   env         = var.env

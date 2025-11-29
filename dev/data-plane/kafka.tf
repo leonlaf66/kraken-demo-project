@@ -1,15 +1,15 @@
-# =========================================================================
+# =============================================================================
 # Kafka Topics and ACLs Module
-# =========================================================================
+# =============================================================================
 # Assignment Requirements:
 # - CDC topics for MNPI data (trades, orders, positions)
 # - CDC topics for Public data (market_data, reference_data)
 # - Schema history topic for Debezium
 # - Least privilege ACLs for MSK Connect connectors
-# =========================================================================
+# =============================================================================
 
 module "kafka" {
-  source = "git::https://github.com/leonlaf66/kraken-demo-module/kafka-data-plane?ref=main"
+  source = "git::https://github.com/leonlaf66/kraken-demo-module.git//kafka-data-plane?ref=main"
 
   bootstrap_servers    = var.msk_bootstrap_brokers_nlb
   kafka_admin_username = local.kafka_admin_creds.username
@@ -20,9 +20,9 @@ module "kafka" {
   msk_cluster_name = var.msk_cluster_name
   common_tags      = var.common_tags
 
-  # =========================================================================
+  # ===========================================================================
   # Topics
-  # =========================================================================
+  # ===========================================================================
   topics = [
     # -----------------------------------------
     # CDC Topics - MNPI Data (Sensitive)
@@ -96,7 +96,7 @@ module "kafka" {
     {
       name               = "schema-changes.kraken-cdc"
       replication_factor = 3
-      partitions         = 1                  # Single partition for ordering
+      partitions         = 1
       config = {
         "retention.ms"        = "-1"          # Infinite retention
         "cleanup.policy"      = "delete"
@@ -106,15 +106,15 @@ module "kafka" {
     }
   ]
 
-  # =========================================================================
+  # ===========================================================================
   # ACL Configuration - Least Privilege
-  # =========================================================================
+  # ===========================================================================
   # Users:
   #   admin          - Cluster management
   #   debezium       - CDC Source Connector
   #   s3_sink_mnpi   - S3 Sink for MNPI data
   #   s3_sink_public - S3 Sink for Public data
-  # =========================================================================
+  # ===========================================================================
 
   user_acls = {
     # -----------------------------------------
@@ -141,8 +141,6 @@ module "kafka" {
     # -----------------------------------------
     # Debezium CDC Source Connector
     # -----------------------------------------
-    # Writes CDC data from PostgreSQL to Kafka
-    # Reads/Writes schema history for DDL tracking
     debezium = [
       # Write to CDC topics
       {
@@ -198,7 +196,6 @@ module "kafka" {
     # -----------------------------------------
     # S3 Sink MNPI Connector
     # -----------------------------------------
-    # Reads MNPI topics only → writes to S3 MNPI bucket
     s3_sink_mnpi = [
       {
         resource_name = "cdc.trades.mnpi"
@@ -230,7 +227,7 @@ module "kafka" {
         resource_type = "Topic"
         operation     = "Describe"
       },
-      # Consumer group: connect-{connector-name}
+      # Consumer group
       {
         resource_name = "connect-s3-sink-raw-mnpi-*"
         resource_type = "Group"
@@ -241,7 +238,6 @@ module "kafka" {
     # -----------------------------------------
     # S3 Sink Public Connector
     # -----------------------------------------
-    # Reads Public topics only → writes to S3 Public bucket
     s3_sink_public = [
       {
         resource_name = "cdc.market_data.public"
@@ -263,7 +259,7 @@ module "kafka" {
         resource_type = "Topic"
         operation     = "Describe"
       },
-      # Consumer group: connect-{connector-name}
+      # Consumer group
       {
         resource_name = "connect-s3-sink-raw-public-*"
         resource_type = "Group"

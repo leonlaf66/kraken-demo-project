@@ -1,26 +1,32 @@
 module "msk" {
-  source = "git::https://github.com/leonlaf66/kraken-demo-module/msk?ref=main"
+  source = "git::https://github.com/leonlaf66/kraken-demo-module.git//msk?ref=main"
+
   app_name    = var.app_name
   env         = var.env
   region      = data.aws_region.current.name
   account_id  = data.aws_caller_identity.current.account_id
   common_tags = var.common_tags
 
-  vpc_id             = data.aws_vpc.slected.id
-  vpc_cidr           = data.aws_vpc.slected.cidr_block
-  private_subnets    = data.aws_subnets.private.ids
-  
-  private_hosted_zone_id = var.create_route53_record
+  # Network - Fixed typo: slected -> selected
+  vpc_id          = data.aws_vpc.selected.id
+  vpc_cidr        = data.aws_vpc.selected.cidr_block
+  private_subnets = data.aws_subnets.private.ids
 
+  # Route53 - Fixed variable reference
+  private_hosted_zone_id = var.private_hosted_zone_id
+
+  # MSK Configuration
   kafka_version          = "3.5.1"
   number_of_broker_nodes = 3
   instance_type          = "kafka.m5.large"
   ebs_volume_size        = 2000
   provisioned_throughput = 250
 
+  # Authentication
   enable_iam  = false
   scram_users = local.scram_users
 
+  # Kafka Server Properties
   server_properties = {
     "auto.create.topics.enable"  = "false"
     "delete.topic.enable"        = "true"
@@ -32,6 +38,6 @@ module "msk" {
     "num.replica.fetchers"       = "2"
     "log.retention.ms"           = "604800000"
     "log.segment.bytes"          = "1073741824"
-    "compression.type"           = "producer" 
+    "compression.type"           = "producer"
   }
 }

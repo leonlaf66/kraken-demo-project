@@ -1,6 +1,10 @@
+# =============================================================================
+# Core Variables
+# =============================================================================
+
 variable "env" {
   type        = string
-  description = "The deployment environment (e.g., 'dev', 'qa', 'prod')"
+  description = "Environment (dev, qa, prod)"
 }
 
 variable "app_name" {
@@ -9,48 +13,29 @@ variable "app_name" {
   default     = "kraken-demo"
 }
 
-variable "msk_bootstrap_brokers_nlb" {
-  type        = string
-  description = "MSK bootstrap servers via NLB (from infra stack)"
-}
-
-variable "msk_scram_secret_names" {
-  type        = map(string)
-  description = "Map of SCRAM username to Secrets Manager secret name (from infra stack)"
-}
-
 variable "common_tags" {
   type        = map(string)
   description = "Common tags for all resources"
+  default     = {}
 }
 
-# =========================================================================
-# Data Plane Variables
-# =========================================================================
-# Variables received from Infra Stack via Spacelift Dependencies
-# =========================================================================
-
-# =========================================================================
-# Environment
-# =========================================================================
-
-variable "env" {
-  type        = string
-  description = "Environment (dev, qa, prod)"
-}
-
-# =========================================================================
+# =============================================================================
 # MSK (from Infra Stack)
-# =========================================================================
+# =============================================================================
 
 variable "msk_cluster_arn" {
   type        = string
   description = "ARN of the MSK cluster"
 }
 
-variable "msk_bootstrap_endpoint_route53" {
+variable "msk_cluster_name" {
   type        = string
-  description = "MSK bootstrap endpoint via Route53 (e.g., kafka-bootstrap.kraken-demo.internal:9096)"
+  description = "Name of the MSK cluster"
+}
+
+variable "msk_bootstrap_brokers_nlb" {
+  type        = string
+  description = "MSK bootstrap servers via NLB"
 }
 
 variable "msk_kms_key_arn" {
@@ -58,37 +43,23 @@ variable "msk_kms_key_arn" {
   description = "KMS key ARN for MSK cluster encryption"
 }
 
-# =========================================================================
-# MSK SCRAM Secret Names (from Infra Stack)
-# =========================================================================
-# Secrets are created in MSK module with prefix AmazonMSK_
-# Format: { "username": "xxx", "password": "xxx" }
-# =========================================================================
-
 variable "msk_scram_secret_names" {
   type        = map(string)
   description = "Map of SCRAM user names to their Secrets Manager secret names"
-  
-  # Example:
-  # {
-  #   "debezium"       = "AmazonMSK_debezium"
-  #   "s3_sink_mnpi"   = "AmazonMSK_s3_sink_mnpi"
-  #   "s3_sink_public" = "AmazonMSK_s3_sink_public"
-  # }
 }
 
-# =========================================================================
+# =============================================================================
 # Database (from Infra Stack)
-# =========================================================================
+# =============================================================================
 
 variable "database_secret_name" {
   type        = string
-  description = "Name of Secrets Manager secret containing database credentials (from database module output)"
+  description = "Name of Secrets Manager secret containing database credentials"
 }
 
-# =========================================================================
+# =============================================================================
 # S3 Buckets (from Infra Stack)
-# =========================================================================
+# =============================================================================
 
 # Raw Layer - MNPI
 variable "s3_bucket_raw_mnpi_arn" {
@@ -122,19 +93,9 @@ variable "s3_kms_key_public_arn" {
   description = "KMS key ARN for Public bucket encryption"
 }
 
-# =========================================================================
-# KMS Keys (from Infra Stack)
-# =========================================================================
-
-variable "secrets_kms_key_arn" {
-  type        = string
-  default     = null
-  description = "KMS key ARN for Secrets Manager (null if using AWS managed key)"
-}
-
-# =========================================================================
+# =============================================================================
 # Plugin Configuration
-# =========================================================================
+# =============================================================================
 
 variable "plugin_bucket_arn" {
   type        = string
