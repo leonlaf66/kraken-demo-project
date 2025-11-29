@@ -35,9 +35,19 @@ output "bucket_raw_public_id" {
 }
 
 # Curated Layer Buckets
+output "bucket_curated_mnpi_arn" {
+  description = "ARN of Curated MNPI bucket"
+  value       = module.storage.bucket_curated_mnpi_arn
+}
+
 output "bucket_curated_mnpi_id" {
   description = "Name of Curated MNPI bucket"
   value       = module.storage.bucket_curated_mnpi_id
+}
+
+output "bucket_curated_public_arn" {
+  description = "ARN of Curated Public bucket"
+  value       = module.storage.bucket_curated_public_arn
 }
 
 output "bucket_curated_public_id" {
@@ -46,9 +56,19 @@ output "bucket_curated_public_id" {
 }
 
 # Analytics Layer Buckets
+output "bucket_analytics_mnpi_arn" {
+  description = "ARN of Analytics MNPI bucket"
+  value       = module.storage.bucket_analytics_mnpi_arn
+}
+
 output "bucket_analytics_mnpi_id" {
   description = "Name of Analytics MNPI bucket"
   value       = module.storage.bucket_analytics_mnpi_id
+}
+
+output "bucket_analytics_public_arn" {
+  description = "ARN of Analytics Public bucket"
+  value       = module.storage.bucket_analytics_public_arn
 }
 
 output "bucket_analytics_public_id" {

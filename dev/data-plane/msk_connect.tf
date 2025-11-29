@@ -2,6 +2,7 @@
 # 1. Debezium CDC Source Connector
 # =============================================================================
 # Reads from PostgreSQL, writes to Kafka topics
+# Schema Registry is available for consumers to register/fetch schemas
 # =============================================================================
 
 module "debezium_cdc_source" {
@@ -14,9 +15,9 @@ module "debezium_cdc_source" {
   connector_type       = "source"
   kafkaconnect_version = "2.7.1"
 
-  # Network - Using data sources
+  # Network
   vpc_id     = local.vpc_id
-  subnet_ids = local.subnet_ids
+  subnet_ids = local.private_subnet_ids
 
   # MSK - NLB endpoint with SCRAM
   msk_cluster_arn         = var.msk_cluster_arn
@@ -28,9 +29,9 @@ module "debezium_cdc_source" {
   kafka_topics_write = local.all_cdc_topics
   kafka_topics_read  = []
 
-  # RDS Secret (for IAM permissions to read secret)
+  # RDS Secret
   rds_secret_arn      = data.aws_secretsmanager_secret.database.arn
-  secrets_kms_key_arn = null  # Database module uses its own KMS key
+  secrets_kms_key_arn = null
 
   # Plugin
   custom_plugin_arn        = var.debezium_plugin_arn
@@ -46,13 +47,13 @@ module "debezium_cdc_source" {
     # Connector Class
     "connector.class" = "io.debezium.connector.postgresql.PostgresConnector"
 
-    # Database Connection (from Secrets Manager)
+    # Database Connection
     "database.hostname"    = local.database_creds.host
     "database.port"        = tostring(local.database_creds.port)
     "database.user"        = local.database_creds.username
     "database.password"    = local.database_creds.password
     "database.dbname"      = local.database_creds.dbname
-    "database.server.name" = "kraken-cdc"
+    "database.server.name" = "${var.app_name}-cdc"
 
     # PostgreSQL Logical Replication
     "plugin.name"                 = "pgoutput"
@@ -63,7 +64,7 @@ module "debezium_cdc_source" {
     # Table Filtering
     "table.include.list" = "public.trades,public.orders,public.positions,public.market_data,public.reference_data"
 
-    # Topic Routing Transforms
+    # Topic Routing
     "topic.prefix" = "cdc"
     "transforms"   = "routeMNPI,routePublic"
 
@@ -80,7 +81,7 @@ module "debezium_cdc_source" {
 
     # Schema History - With SCRAM Auth
     "schema.history.internal.kafka.bootstrap.servers" = local.msk_bootstrap_endpoint
-    "schema.history.internal.kafka.topic"             = "schema-changes.kraken-cdc"
+    "schema.history.internal.kafka.topic"             = "schema-changes.${var.app_name}-cdc"
 
     "schema.history.internal.producer.security.protocol" = "SASL_SSL"
     "schema.history.internal.producer.sasl.mechanism"    = "SCRAM-SHA-512"
@@ -90,11 +91,11 @@ module "debezium_cdc_source" {
     "schema.history.internal.consumer.sasl.mechanism"    = "SCRAM-SHA-512"
     "schema.history.internal.consumer.sasl.jaas.config"  = local.debezium_scram_jaas_config
 
-    # Converters
+    # Converters - JSON with schema
     "key.converter"                  = "org.apache.kafka.connect.json.JsonConverter"
-    "key.converter.schemas.enable"   = "false"
+    "key.converter.schemas.enable"   = "true"
     "value.converter"                = "org.apache.kafka.connect.json.JsonConverter"
-    "value.converter.schemas.enable" = "false"
+    "value.converter.schemas.enable" = "true"
 
     # Performance
     "max.batch.size"   = "2048"
@@ -112,6 +113,8 @@ module "debezium_cdc_source" {
 
   log_retention_in_days = 7
   common_tags           = var.common_tags
+
+  depends_on = [module.streaming_services]
 }
 
 # =============================================================================
@@ -130,11 +133,11 @@ module "s3_sink_mnpi" {
   connector_type       = "sink"
   kafkaconnect_version = "2.7.1"
 
-  # Network - Using data sources
+  # Network
   vpc_id     = local.vpc_id
-  subnet_ids = local.subnet_ids
+  subnet_ids = local.private_subnet_ids
 
-  # MSK - NLB endpoint with SCRAM
+  # MSK
   msk_cluster_arn         = var.msk_cluster_arn
   msk_bootstrap_servers   = local.msk_bootstrap_endpoint
   msk_authentication_type = "NONE"
@@ -154,8 +157,8 @@ module "s3_sink_mnpi" {
   custom_plugin_bucket_arn = var.plugin_bucket_arn
 
   # S3 - MNPI bucket only
-  s3_sink_bucket_arn = var.s3_bucket_raw_mnpi_arn
-  s3_kms_key_arn     = var.s3_kms_key_mnpi_arn
+  s3_sink_bucket_arn = var.bucket_raw_mnpi_arn
+  s3_kms_key_arn     = var.kms_key_mnpi_arn
 
   # Connector Configuration
   connector_configuration = {
@@ -165,10 +168,10 @@ module "s3_sink_mnpi" {
     "topics" = join(",", local.cdc_topics_mnpi)
 
     # S3
-    "s3.bucket.name" = var.s3_bucket_raw_mnpi_name
+    "s3.bucket.name" = var.bucket_raw_mnpi_id
     "s3.region"      = local.region
 
-    # Storage
+    # Storage - JSON format
     "storage.class" = "io.confluent.connect.s3.storage.S3Storage"
     "format.class"  = "io.confluent.connect.s3.format.json.JsonFormat"
 
@@ -185,7 +188,7 @@ module "s3_sink_mnpi" {
     "rotate.interval.ms"          = "60000"
     "rotate.schedule.interval.ms" = "3600000"
 
-    # Converters
+    # Converters - JSON
     "key.converter"                  = "org.apache.kafka.connect.json.JsonConverter"
     "key.converter.schemas.enable"   = "false"
     "value.converter"                = "org.apache.kafka.connect.json.JsonConverter"
@@ -208,6 +211,8 @@ module "s3_sink_mnpi" {
 
   log_retention_in_days = 7
   common_tags           = var.common_tags
+
+  depends_on = [module.streaming_services]
 }
 
 # =============================================================================
@@ -226,11 +231,11 @@ module "s3_sink_public" {
   connector_type       = "sink"
   kafkaconnect_version = "2.7.1"
 
-  # Network - Using data sources
+  # Network
   vpc_id     = local.vpc_id
-  subnet_ids = local.subnet_ids
+  subnet_ids = local.private_subnet_ids
 
-  # MSK - NLB endpoint with SCRAM
+  # MSK
   msk_cluster_arn         = var.msk_cluster_arn
   msk_bootstrap_servers   = local.msk_bootstrap_endpoint
   msk_authentication_type = "NONE"
@@ -250,8 +255,8 @@ module "s3_sink_public" {
   custom_plugin_bucket_arn = var.plugin_bucket_arn
 
   # S3 - Public bucket only
-  s3_sink_bucket_arn = var.s3_bucket_raw_public_arn
-  s3_kms_key_arn     = var.s3_kms_key_public_arn
+  s3_sink_bucket_arn = var.bucket_raw_public_arn
+  s3_kms_key_arn     = var.kms_key_public_arn
 
   # Connector Configuration
   connector_configuration = {
@@ -261,10 +266,10 @@ module "s3_sink_public" {
     "topics" = join(",", local.cdc_topics_public)
 
     # S3
-    "s3.bucket.name" = var.s3_bucket_raw_public_name
+    "s3.bucket.name" = var.bucket_raw_public_id
     "s3.region"      = local.region
 
-    # Storage
+    # Storage - JSON format
     "storage.class" = "io.confluent.connect.s3.storage.S3Storage"
     "format.class"  = "io.confluent.connect.s3.format.json.JsonFormat"
 
@@ -281,7 +286,7 @@ module "s3_sink_public" {
     "rotate.interval.ms"          = "300000"
     "rotate.schedule.interval.ms" = "86400000"
 
-    # Converters
+    # Converters - JSON
     "key.converter"                  = "org.apache.kafka.connect.json.JsonConverter"
     "key.converter.schemas.enable"   = "false"
     "value.converter"                = "org.apache.kafka.connect.json.JsonConverter"
@@ -304,4 +309,6 @@ module "s3_sink_public" {
 
   log_retention_in_days = 7
   common_tags           = var.common_tags
+
+  depends_on = [module.streaming_services]
 }
