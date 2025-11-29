@@ -1,6 +1,6 @@
 # 1. Debezium CDC Source Connector
 module "debezium_cdc_source" {
-  source = "../../../tfm/modules/msk-connect"
+  source = "git::https://github.com/leonlaf66/kraken-demo-module/msk-connect?ref=main"
 
   connector_name       = "debezium-postgres-cdc-${var.env}"
   env                  = var.env

@@ -9,7 +9,7 @@
 # =========================================================================
 
 module "kafka" {
-  source = "../../../tfm/modules/kafka"
+  source = "git::https://github.com/leonlaf66/kraken-demo-module/kafka-data-plane?ref=main"
 
   bootstrap_servers    = var.msk_bootstrap_brokers_nlb
   kafka_admin_username = local.kafka_admin_creds.username
