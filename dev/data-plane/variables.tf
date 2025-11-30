@@ -1,12 +1,30 @@
-# =============================================================================
-# Core Variables
-# =============================================================================
-
 variable "env" {
   type        = string
   description = "Environment (dev, qa, prod)"
 }
 
+variable "aws_region" {
+  type        = string
+  description = "AWS region for deployment"
+}
+
+variable "aws_account_id" {
+  type        = string
+  description = "AWS Account ID"
+}
+
+variable "iam_permissions_boundary_arn" {
+  type        = string
+  description = "ARN of the IAM permissions boundary policy"
+  default     = null
+}
+
+variable "route53_private_zone_id" {
+  type        = string
+  description = "Route53 private hosted zone ID"
+}
+
+# Application Variables
 variable "app_name" {
   type        = string
   description = "Application name"
@@ -19,10 +37,7 @@ variable "common_tags" {
   default     = {}
 }
 
-# =============================================================================
 # MSK (from Infra Stack)
-# =============================================================================
-
 variable "msk_cluster_arn" {
   type        = string
   description = "ARN of the MSK cluster"
@@ -53,10 +68,7 @@ variable "msk_security_group_id" {
   description = "MSK security group ID (for Prometheus to scrape brokers)"
 }
 
-# =============================================================================
 # Database (from Infra Stack)
-# =============================================================================
-
 variable "database_master_secret_name" {
   type        = string
   description = "Name of Secrets Manager secret containing database credentials"
@@ -67,10 +79,7 @@ variable "database_security_group_id" {
   description = "Security group ID for RDS instance"
 }
 
-# =============================================================================
 # S3 Buckets (from Infra Stack)
-# =============================================================================
-
 # Raw Layer - MNPI
 variable "bucket_raw_mnpi_arn" {
   type        = string
@@ -93,6 +102,28 @@ variable "bucket_raw_public_id" {
   description = "Name of S3 bucket for raw Public data"
 }
 
+# Curated Layer (ARN only - for Athena)
+variable "bucket_curated_mnpi_arn" {
+  type        = string
+  description = "ARN of S3 bucket for curated MNPI data"
+}
+
+variable "bucket_curated_public_arn" {
+  type        = string
+  description = "ARN of S3 bucket for curated Public data"
+}
+
+# Analytics Layer (ARN only - for Athena)
+variable "bucket_analytics_mnpi_arn" {
+  type        = string
+  description = "ARN of S3 bucket for analytics MNPI data"
+}
+
+variable "bucket_analytics_public_arn" {
+  type        = string
+  description = "ARN of S3 bucket for analytics Public data"
+}
+
 # KMS Keys
 variable "kms_key_mnpi_arn" {
   type        = string
@@ -104,65 +135,7 @@ variable "kms_key_public_arn" {
   description = "KMS key ARN for Public bucket encryption"
 }
 
-# =============================================================================
-# Plugin Configuration
-# =============================================================================
-
-variable "plugin_bucket_arn" {
-  type        = string
-  description = "ARN of S3 bucket containing MSK Connect plugins"
-}
-
-variable "debezium_plugin_arn" {
-  type        = string
-  description = "ARN of the Debezium custom plugin"
-}
-
-variable "debezium_plugin_revision" {
-  type        = number
-  default     = 1
-  description = "Revision of the Debezium plugin"
-}
-
-variable "s3_sink_plugin_arn" {
-  type        = string
-  description = "ARN of the Confluent S3 Sink custom plugin"
-}
-
-variable "s3_sink_plugin_revision" {
-  type        = number
-  default     = 1
-  description = "Revision of the S3 Sink plugin"
-}
-
-# =============================================================================
-# S3 Buckets - Curated & Analytics Layers (for Athena)
-# =============================================================================
-
-variable "bucket_curated_mnpi_arn" {
-  type        = string
-  description = "ARN of S3 bucket for curated MNPI data"
-}
-
-variable "bucket_curated_public_arn" {
-  type        = string
-  description = "ARN of S3 bucket for curated Public data"
-}
-
-variable "bucket_analytics_mnpi_arn" {
-  type        = string
-  description = "ARN of S3 bucket for analytics MNPI data"
-}
-
-variable "bucket_analytics_public_arn" {
-  type        = string
-  description = "ARN of S3 bucket for analytics Public data"
-}
-
-# =============================================================================
-# Glue Databases (for Athena)
-# =============================================================================
-
+# Glue Databases (from Infra Stack - for Athena)
 variable "glue_database_raw_mnpi" {
   type        = string
   description = "Glue database name for Raw MNPI data"
@@ -193,24 +166,41 @@ variable "glue_database_analytics_public" {
   description = "Glue database name for Analytics Public data"
 }
 
-# =============================================================================
-# ECS / Streaming Services
-# =============================================================================
+# Plugin Configuration
+variable "plugin_bucket_arn" {
+  type        = string
+  description = "ARN of S3 bucket containing MSK Connect plugins"
+}
 
+variable "debezium_plugin_arn" {
+  type        = string
+  description = "ARN of the Debezium custom plugin"
+}
+
+variable "debezium_plugin_revision" {
+  type        = number
+  default     = 1
+  description = "Revision of the Debezium plugin"
+}
+
+variable "s3_sink_plugin_arn" {
+  type        = string
+  description = "ARN of the Confluent S3 Sink custom plugin"
+}
+
+variable "s3_sink_plugin_revision" {
+  type        = number
+  default     = 1
+  description = "Revision of the S3 Sink plugin"
+}
+
+# ECS / Streaming Services
 variable "acm_certificate_arn" {
   type        = string
   description = "ARN of ACM certificate for HTTPS"
 }
 
-variable "route53_private_zone_id" {
-  type        = string
-  description = "Route53 private hosted zone ID"
-}
-
-# =============================================================================
-# Alerting (PagerDuty) - 参考你以前的设置
-# =============================================================================
-
+# Alerting (PagerDuty) - Optional
 variable "pagerduty_integration_key_warning" {
   type        = string
   description = "PagerDuty integration key for warning alerts"
