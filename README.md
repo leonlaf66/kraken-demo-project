@@ -68,14 +68,53 @@ terraform plan -var-file="../../vars/dev.tfvars"
 ## Data Flow
 
 ```
-PostgreSQL ──CDC──▶ Debezium ──▶ MSK Topics ──▶ S3 Sink ──▶ S3 Raw Layer
-                                     │
-                                     ▼
-                              Schema Registry
-                                     │
-                                     ▼
-                             Glue Catalog ◀──── Athena Queries
+                                    ┌─────────────────────────────────────────┐
+                                    │          ECS Services                   │
+                                    │  ┌───────────────┐  ┌───────────────┐   │
+                                    │  │    Cruise     │  │  Prometheus   │   │
+                                    │  │   Control     │  │ + Alertmanager│   │
+                                    │  └───────┬───────┘  └───────┬───────┘   │
+                                    │          │ manage           │ monitor   │
+                                    │          ▼                  ▼           │
+                                    │  ┌─────────────────────────────────┐    │
+                                    │  │          MSK Cluster            │    │
+                                    │  └─────────────────────────────────┘    │
+                                    │                  ▲                      │
+                                    │                  │                      │
+                                    │  ┌───────────────┴───────────────┐      │
+                                    │  │       Schema Registry         │      │
+                                    │  └───────────────────────────────┘      │
+                                    └──────────────────┬──────────────────────┘
+                                                       │
+                                              (register schema)
+                                                       │
+┌─────────────┐    ┌─────────────────────┐            │           ┌─────────────────────┐    ┌─────────────┐
+│ PostgreSQL  │───▶│      Debezium       │────────────┴──────────▶│      S3 Sink        │───▶│  S3 Data    │
+│   (RDS)     │CDC │  (MSK Connect)      │    MSK Topics          │   (MSK Connect)     │    │   Lake      │
+└─────────────┘    └─────────────────────┘                        └─────────────────────┘    └──────┬──────┘
+                                                                                                    │
+                                                                                                    ▼
+                                                                                            ┌───────────────┐
+                                                                                            │ Glue Catalog  │
+                                                                                            └───────┬───────┘
+                                                                                                    │
+                                                                                                    ▼
+                                                                                            ┌───────────────┐
+                                                                                            │    Athena     │
+                                                                                            └───────────────┘
 ```
+
+**Data Pipeline:**
+1. **PostgreSQL → Debezium**: CDC captures row-level changes
+2. **Debezium → Schema Registry**: Register/validate message schemas
+3. **Debezium → MSK**: Publish CDC events to Kafka topics (MNPI/Public separated)
+4. **MSK → S3 Sink**: Write events to S3 raw layer (partitioned by time)
+5. **S3 → Glue → Athena**: Query data via SQL
+
+**Platform Services (ECS):**
+- **Schema Registry**: Schema versioning and compatibility for Kafka messages
+- **Cruise Control**: MSK cluster rebalancing and optimization
+- **Prometheus + Alertmanager**: Metrics collection and alerting
 
 ## User Access Tiers
 
