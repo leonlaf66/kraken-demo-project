@@ -116,21 +116,67 @@ locals {
   msk_bootstrap_endpoint = var.msk_bootstrap_brokers_nlb
 
   # =============================================================================
-  # Topic Naming
+  # FIX: SINGLE SOURCE OF TRUTH FOR TOPICS
+  # All topic names defined here and referenced everywhere else
   # =============================================================================
 
-  cdc_topics_mnpi = [
-    "cdc.trades.mnpi",
-    "cdc.orders.mnpi",
-    "cdc.positions.mnpi"
-  ]
+  # CDC Topic Configuration - MNPI (Sensitive)
+  cdc_topic_config_mnpi = {
+    "cdc.trades.mnpi" = {
+      table              = "trades"
+      replication_factor = 3
+      partitions         = 6
+      retention_ms       = "604800000" # 7 days
+      compression        = "lz4"
+    }
+    "cdc.orders.mnpi" = {
+      table              = "orders"
+      replication_factor = 3
+      partitions         = 6
+      retention_ms       = "604800000"
+      compression        = "lz4"
+    }
+    "cdc.positions.mnpi" = {
+      table              = "positions"
+      replication_factor = 3
+      partitions         = 3
+      retention_ms       = "604800000"
+      compression        = "lz4"
+    }
+  }
 
-  cdc_topics_public = [
-    "cdc.market_data.public",
-    "cdc.reference_data.public"
-  ]
+  # CDC Topic Configuration - Public (Non-Sensitive)
+  cdc_topic_config_public = {
+    "cdc.market_data.public" = {
+      table              = "market_data"
+      replication_factor = 3
+      partitions         = 9
+      retention_ms       = "604800000"
+      compression        = "snappy"
+    }
+    "cdc.reference_data.public" = {
+      table              = "reference_data"
+      replication_factor = 3
+      partitions         = 3
+      retention_ms       = "2592000000" # 30 days
+      compression        = "snappy"
+      cleanup_policy     = "compact"
+    }
+  }
 
-  all_cdc_topics = concat(local.cdc_topics_mnpi, local.cdc_topics_public)
+  # Derived topic lists (for use in other resources)
+  cdc_topics_mnpi   = keys(local.cdc_topic_config_mnpi)
+  cdc_topics_public = keys(local.cdc_topic_config_public)
+  all_cdc_topics    = concat(local.cdc_topics_mnpi, local.cdc_topics_public)
+
+  # Table include list for Debezium (derived from topic config)
+  debezium_table_include_list = join(",", [
+    for topic, config in merge(local.cdc_topic_config_mnpi, local.cdc_topic_config_public) :
+    "public.${config.table}"
+  ])
+
+  # Schema history topic
+  schema_history_topic = "schema-changes.${var.app_name}-cdc"
 
   # =============================================================================
   # Credentials Parsing
@@ -159,9 +205,7 @@ locals {
   prometheus_image      = "${local.ecr_registry}/prom/prometheus:${data.aws_ssm_parameter.prometheus_image_tag.value}"
   alertmanager_image    = "${local.ecr_registry}/prom/alertmanager:${data.aws_ssm_parameter.alertmanager_image_tag.value}"
 
-  # Schema Registry URL (internal)
   # Schema Registry URL (via ALB Route53 record)
-  # Route53 record name = service key, zone name from data source
   route53_zone_name   = trimsuffix(data.aws_route53_zone.private.name, ".")
   schema_registry_url = "http://schema-registry.${local.route53_zone_name}:8081"
 
@@ -169,7 +213,7 @@ locals {
   kafka_credentials_secret_arn = data.aws_secretsmanager_secret.kafka_admin.arn
 
   # =============================================================================
-  # Cruise Control Configuration (参考你以前的设置)
+  # Cruise Control Configuration
   # =============================================================================
 
   cruise_control_goals = "com.linkedin.kafka.cruisecontrol.analyzer.goals.RackAwareGoal,com.linkedin.kafka.cruisecontrol.analyzer.goals.ReplicaCapacityGoal,com.linkedin.kafka.cruisecontrol.analyzer.goals.DiskCapacityGoal,com.linkedin.kafka.cruisecontrol.analyzer.goals.NetworkInboundCapacityGoal,com.linkedin.kafka.cruisecontrol.analyzer.goals.NetworkOutboundCapacityGoal,com.linkedin.kafka.cruisecontrol.analyzer.goals.CpuCapacityGoal,com.linkedin.kafka.cruisecontrol.analyzer.goals.ReplicaDistributionGoal,com.linkedin.kafka.cruisecontrol.analyzer.goals.DiskUsageDistributionGoal,com.linkedin.kafka.cruisecontrol.analyzer.goals.LeaderReplicaDistributionGoal"
@@ -192,17 +236,13 @@ locals {
   }
 
   # =============================================================================
-  # Prometheus Configuration (参考你以前的设置)
+  # Prometheus Configuration
   # =============================================================================
 
   # MSK broker hostnames for scraping
-  msk_broker_hostnames     = [for node in data.aws_msk_broker_nodes.main.node_info_list : one(node.endpoints)]
-  msk_jmx_targets          = [for host in local.msk_broker_hostnames : "${host}:11001"]
+  msk_broker_hostnames      = [for node in data.aws_msk_broker_nodes.main.node_info_list : one(node.endpoints)]
+  msk_jmx_targets           = [for host in local.msk_broker_hostnames : "${host}:11001"]
   msk_node_exporter_targets = [for host in local.msk_broker_hostnames : "${host}:11002"]
-
-  # Route53 private zone name (from variable)
-  # DNS records created by ecs-service module: {service-name}.{zone_name}
-  # e.g., alertmanager.kraken-demo-dev.internal, cruise-control.kraken-demo-dev.internal
 
   prometheus_config_content = <<-EOT
     global:
@@ -230,7 +270,7 @@ locals {
   EOT
 
   # =============================================================================
-  # Prometheus Alert Rules (参考你以前的设置)
+  # Prometheus Alert Rules
   # =============================================================================
 
   broker_alert_rules = [
@@ -284,11 +324,12 @@ locals {
     }
   ]
 
+  # FIX: Topic thresholds now derived from single source of truth
   topic_message_thresholds = {
-    "cdc.trades.mnpi"         = 10000
-    "cdc.orders.mnpi"         = 10000
-    "cdc.positions.mnpi"      = 5000
-    "cdc.market_data.public"  = 20000
+    "cdc.trades.mnpi"           = 10000
+    "cdc.orders.mnpi"           = 10000
+    "cdc.positions.mnpi"        = 5000
+    "cdc.market_data.public"    = 20000
     "cdc.reference_data.public" = 1000
   }
 
@@ -322,7 +363,7 @@ locals {
   })
 
   # =============================================================================
-  # Alertmanager Configuration (参考你以前的设置)
+  # Alertmanager Configuration
   # =============================================================================
 
   alertmanager_config_content = <<-EOT

@@ -3,6 +3,9 @@
 # =============================================================================
 # Reads from PostgreSQL, writes to Kafka topics
 # Schema Registry is available for consumers to register/fetch schemas
+#
+# FIX: Now uses local.* for topic lists and table include list (single source of truth)
+# FIX: Database credentials now reference Secrets Manager ARN instead of plain text
 # =============================================================================
 
 module "debezium_cdc_source" {
@@ -25,7 +28,7 @@ module "debezium_cdc_source" {
   msk_authentication_type = "NONE"
   msk_kms_key_arn         = var.msk_kms_key_arn
 
-  # Kafka Permissions
+  # FIX: Using local.all_cdc_topics from single source of truth
   kafka_topics_write = local.all_cdc_topics
   kafka_topics_read  = []
 
@@ -43,16 +46,20 @@ module "debezium_cdc_source" {
   s3_kms_key_arn     = null
 
   # Connector Configuration
+  # FIX: Credentials now use ${secretsManager:ARN:key} syntax for MSK Connect
+  # This avoids exposing passwords in Terraform state
   connector_configuration = {
     # Connector Class
     "connector.class" = "io.debezium.connector.postgresql.PostgresConnector"
 
-    # Database Connection
-    "database.hostname"    = local.database_creds.host
-    "database.port"        = tostring(local.database_creds.port)
-    "database.user"        = local.database_creds.username
-    "database.password"    = local.database_creds.password
-    "database.dbname"      = local.database_creds.dbname
+    # Database Connection - Using Secrets Manager references
+    # MSK Connect supports ${secretsManager:secret-arn:json-key} syntax
+    "database.hostname" = "$${secretsManager:${data.aws_secretsmanager_secret.database.arn}:host}"
+    "database.port"     = "$${secretsManager:${data.aws_secretsmanager_secret.database.arn}:port}"
+    "database.user"     = "$${secretsManager:${data.aws_secretsmanager_secret.database.arn}:username}"
+    "database.password" = "$${secretsManager:${data.aws_secretsmanager_secret.database.arn}:password}"
+    "database.dbname"   = "$${secretsManager:${data.aws_secretsmanager_secret.database.arn}:dbname}"
+
     "database.server.name" = "${var.app_name}-cdc"
 
     # PostgreSQL Logical Replication
@@ -61,8 +68,8 @@ module "debezium_cdc_source" {
     "publication.name"            = "debezium_publication"
     "publication.autocreate.mode" = "filtered"
 
-    # Table Filtering
-    "table.include.list" = "public.trades,public.orders,public.positions,public.market_data,public.reference_data"
+    # FIX: Table include list derived from topic config
+    "table.include.list" = local.debezium_table_include_list
 
     # Topic Routing
     "topic.prefix" = "cdc"
@@ -79,9 +86,9 @@ module "debezium_cdc_source" {
     # Snapshot
     "snapshot.mode" = "initial"
 
-    # Schema History - With SCRAM Auth
+    # FIX: Schema history topic from single source of truth
     "schema.history.internal.kafka.bootstrap.servers" = local.msk_bootstrap_endpoint
-    "schema.history.internal.kafka.topic"             = "schema-changes.${var.app_name}-cdc"
+    "schema.history.internal.kafka.topic"             = local.schema_history_topic
 
     "schema.history.internal.producer.security.protocol" = "SASL_SSL"
     "schema.history.internal.producer.sasl.mechanism"    = "SCRAM-SHA-512"
@@ -121,6 +128,7 @@ module "debezium_cdc_source" {
 # 2. S3 Sink Connector - MNPI Zone
 # =============================================================================
 # Reads MNPI topics, writes to S3 MNPI bucket
+# FIX: Uses local.cdc_topics_mnpi from single source of truth
 # =============================================================================
 
 module "s3_sink_mnpi" {
@@ -143,7 +151,7 @@ module "s3_sink_mnpi" {
   msk_authentication_type = "NONE"
   msk_kms_key_arn         = var.msk_kms_key_arn
 
-  # Kafka Permissions - MNPI topics only
+  # FIX: Using local.cdc_topics_mnpi from single source of truth
   kafka_topics_write = []
   kafka_topics_read  = local.cdc_topics_mnpi
 
@@ -164,7 +172,7 @@ module "s3_sink_mnpi" {
   connector_configuration = {
     "connector.class" = "io.confluent.connect.s3.S3SinkConnector"
 
-    # Topics - MNPI only
+    # FIX: Topics from single source of truth
     "topics" = join(",", local.cdc_topics_mnpi)
 
     # S3
@@ -219,6 +227,7 @@ module "s3_sink_mnpi" {
 # 3. S3 Sink Connector - Public Zone
 # =============================================================================
 # Reads Public topics, writes to S3 Public bucket
+# FIX: Uses local.cdc_topics_public from single source of truth
 # =============================================================================
 
 module "s3_sink_public" {
@@ -241,7 +250,7 @@ module "s3_sink_public" {
   msk_authentication_type = "NONE"
   msk_kms_key_arn         = var.msk_kms_key_arn
 
-  # Kafka Permissions - Public topics only
+  # FIX: Using local.cdc_topics_public from single source of truth
   kafka_topics_write = []
   kafka_topics_read  = local.cdc_topics_public
 
@@ -262,7 +271,7 @@ module "s3_sink_public" {
   connector_configuration = {
     "connector.class" = "io.confluent.connect.s3.S3SinkConnector"
 
-    # Topics - Public only
+    # FIX: Topics from single source of truth
     "topics" = join(",", local.cdc_topics_public)
 
     # S3

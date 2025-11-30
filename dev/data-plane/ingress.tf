@@ -1,5 +1,5 @@
 module "sg_ingress" {
-  source = "git::https://github.com/leonlaf66/kraken-demo-module.git//sg_ingress?ref=main"
+  source = "git::https://github.com/leonlaf66/kraken-demo-module.git//sg-ingress?ref=main"
 
   ingress_rules = {
     # RDS

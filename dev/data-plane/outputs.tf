@@ -83,9 +83,22 @@ output "s3_sink_public_connector_arn" {
 # Athena Outputs
 # =============================================================================
 
-output "athena_workgroup_name" {
-  description = "Athena workgroup name"
-  value       = aws_athena_workgroup.main.name
+# FIX: Changed from aws_athena_workgroup.main.name to module.athena.workgroups
+# The athena module creates workgroups dynamically per user_group
+output "athena_workgroups" {
+  description = "Athena workgroups by user group"
+  value       = module.athena.workgroups
+}
+
+# Convenience output for the default data_engineers workgroup
+output "athena_workgroup_data_engineers" {
+  description = "Athena workgroup name for data engineers"
+  value       = module.athena.workgroups["data_engineers"].name
+}
+
+output "athena_query_results_bucket" {
+  description = "Athena query results bucket"
+  value       = module.athena.query_results_bucket
 }
 
 # =============================================================================
