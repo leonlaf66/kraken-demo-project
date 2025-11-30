@@ -1,6 +1,10 @@
 # =============================================================================
 # ECS Service Outputs
 # =============================================================================
+output "ecs_tasks_security_group_id" {
+  description = "ECS tasks security group ID"
+  value       = module.streaming_services.ecs_tasks_security_group_id
+}
 
 output "ecs_cluster_id" {
   description = "ECS cluster ID"
@@ -12,7 +16,6 @@ output "ecs_cluster_name" {
   value       = module.streaming_services.cluster_name
 }
 
-# Service ARNs
 output "schema_registry_service_arn" {
   description = "Schema Registry ECS service ARN"
   value       = module.streaming_services.service_arns["schema-registry"]
@@ -33,7 +36,6 @@ output "alertmanager_service_arn" {
   value       = module.streaming_services.service_arns["alertmanager"]
 }
 
-# Service Endpoints (DNS)
 output "schema_registry_endpoint" {
   description = "Schema Registry endpoint URL"
   value       = module.streaming_services.service_endpoints["schema-registry"]
@@ -54,7 +56,6 @@ output "alertmanager_endpoint" {
   value       = module.streaming_services.service_endpoints["alertmanager"]
 }
 
-# Schema Registry URL (for MSK Connect and other services)
 output "schema_registry_url" {
   description = "Schema Registry URL for connector configuration"
   value       = local.schema_registry_url
@@ -83,14 +84,11 @@ output "s3_sink_public_connector_arn" {
 # Athena Outputs
 # =============================================================================
 
-# FIX: Changed from aws_athena_workgroup.main.name to module.athena.workgroups
-# The athena module creates workgroups dynamically per user_group
 output "athena_workgroups" {
   description = "Athena workgroups by user group"
   value       = module.athena.workgroups
 }
 
-# Convenience output for the default data_engineers workgroup
 output "athena_workgroup_data_engineers" {
   description = "Athena workgroup name for data engineers"
   value       = module.athena.workgroups["data_engineers"].name
@@ -101,11 +99,3 @@ output "athena_query_results_bucket" {
   value       = module.athena.query_results_bucket
 }
 
-# =============================================================================
-# Security Group Outputs
-# =============================================================================
-
-output "ecs_tasks_security_group_id" {
-  description = "ECS tasks security group ID"
-  value       = module.streaming_services.ecs_tasks_security_group_id
-}

@@ -7,12 +7,10 @@ module "database" {
   account_id  = data.aws_caller_identity.current.account_id
   common_tags = var.common_tags
 
-  # Network
   vpc_id                = data.aws_vpc.selected.id
   db_subnet_ids         = data.aws_subnets.private.ids
   allowed_ingress_cidrs = [data.aws_vpc.selected.cidr_block]
 
-  # Database Configuration
   db_name           = "kraken_db"
   db_engine_version = "14.7"
   db_instance_class = "db.t3.medium"
@@ -24,7 +22,6 @@ module "database" {
   db_username = "postgres"
   db_multi_az = false
 
-  # Backup & Maintenance
   backup_retention_period = 7
   skip_final_snapshot     = true
   deletion_protection     = false

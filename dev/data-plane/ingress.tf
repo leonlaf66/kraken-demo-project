@@ -5,7 +5,7 @@ module "sg_ingress" {
     # RDS
     "rds-from-debezium" = {
       description                  = "PostgreSQL from Debezium CDC connector"
-      security_group_id            = var.rds_security_group_id
+      security_group_id            = var.database_security_group_id
       referenced_security_group_id = module.debezium_cdc_source.security_group_id
       from_port                    = 5432
       to_port                      = 5432

@@ -1,6 +1,3 @@
-################################################################################
-# Streaming Services - ECS Module
-################################################################################
 
 module "streaming_services" {
   source = "git::https://github.com/leonlaf66/kraken-demo-module.git//ecs-service?ref=main"
@@ -11,32 +8,22 @@ module "streaming_services" {
   aws_account_id = data.aws_caller_identity.current.account_id
   common_tags    = local.common_tags
 
-  # Networking
   vpc_id             = local.vpc_id
   private_subnet_ids = local.private_subnet_ids
 
-  # ECS Cluster
   cluster_name       = "${local.app_name}-${local.environment}-streaming"
   container_insights = true
 
-  # HTTPS
   acm_certificate_arn = var.acm_certificate_arn
 
-  # EFS
   efs_performance_mode = "generalPurpose"
   efs_throughput_mode  = "bursting"
 
-  # Security - allow access from VPC
-  alb_ingress_cidr_blocks = [local.vpc_cidr]
+  alb_ingress_cidr_blocks                   = [local.vpc_cidr]
+  ecs_additional_ingress_security_group_ids = [var.msk_security_group_id]
 
-  # Allow MSK brokers to be scraped by Prometheus
-  ecs_additional_ingress_security_group_ids = var.msk_security_group_ids
-
-  # Services
   services = {
-    #---------------------------------------------------------------------------
     # Schema Registry
-    #---------------------------------------------------------------------------
     schema-registry = {
       image = local.schema_registry_image
 
@@ -80,9 +67,7 @@ module "streaming_services" {
       }
     }
 
-    #---------------------------------------------------------------------------
-    # Cruise Control (参考你以前的设置)
-    #---------------------------------------------------------------------------
+    # Cruise Control
     cruise-control = {
       image = local.cruise_control_image
 
@@ -113,12 +98,10 @@ module "streaming_services" {
         { name = "KAFKA_HEAP_OPTS", value = "-Xmx2g -Xms2g" },
         { name = "CC_UI_ENVIRONMENT", value = local.environment },
         { name = "APPLICATION_NAME", value = local.app_name },
-        # Cruise Control properties
         { name = "BOOTSTRAP_SERVERS", value = local.msk_bootstrap_endpoint },
         { name = "SECURITY_PROTOCOL", value = "SASL_SSL" },
         { name = "SASL_MECHANISM", value = "SCRAM-SHA-512" },
         { name = "SSL_ENDPOINT_IDENTIFICATION_ALGORITHM", value = "" },
-        # Capacity settings (参考你以前的设置)
         { name = "CAPACITY_DISK", value = "102400" },
         { name = "CAPACITY_CPU", value = "4" },
         { name = "CAPACITY_NW", value = "1562500" },
@@ -140,9 +123,7 @@ module "streaming_services" {
       }
     }
 
-    #---------------------------------------------------------------------------
-    # Prometheus (参考你以前的设置)
-    #---------------------------------------------------------------------------
+    # Prometheus
     prometheus = {
       image = local.prometheus_image
 
@@ -153,7 +134,7 @@ module "streaming_services" {
       health_check_path = "/-/healthy"
 
       enable_alb        = true
-      alb_listener_port = 9091 # Different port to avoid conflict with cruise-control
+      alb_listener_port = 9091
 
       enable_route53  = true
       route53_zone_id = var.route53_private_zone_id
@@ -174,7 +155,6 @@ module "streaming_services" {
         { name = "PROMETHEUS_RETENTION_SIZE", value = "10GB" },
       ]
 
-      # Command args for Prometheus
       command = [
         "--config.file=/etc/prometheus/prometheus.yml",
         "--storage.tsdb.path=/prometheus",
@@ -191,9 +171,7 @@ module "streaming_services" {
       }
     }
 
-    #---------------------------------------------------------------------------
-    # Alertmanager (参考你以前的设置)
-    #---------------------------------------------------------------------------
+    # Alertmanager
     alertmanager = {
       image = local.alertmanager_image
 
@@ -237,10 +215,7 @@ module "streaming_services" {
   }
 }
 
-################################################################################
 # SSM Parameters for Configuration
-################################################################################
-
 # Prometheus config
 resource "aws_ssm_parameter" "prometheus_config" {
   name  = "/${var.app_name}/${var.env}/prometheus/config"

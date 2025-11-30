@@ -7,26 +7,21 @@ module "msk" {
   account_id  = data.aws_caller_identity.current.account_id
   common_tags = var.common_tags
 
-  # Network - Fixed typo: slected -> selected
   vpc_id          = data.aws_vpc.selected.id
   vpc_cidr        = data.aws_vpc.selected.cidr_block
   private_subnets = data.aws_subnets.private.ids
 
-  # Route53 - Fixed variable reference
-  private_hosted_zone_id = var.private_hosted_zone_id
+  private_hosted_zone_id = var.route53_private_zone_id
 
-  # MSK Configuration
   kafka_version          = "3.5.1"
   number_of_broker_nodes = 3
   instance_type          = "kafka.m5.large"
   ebs_volume_size        = 2000
   provisioned_throughput = 250
 
-  # Authentication
   enable_iam  = false
   scram_users = local.scram_users
 
-  # Kafka Server Properties
   server_properties = {
     "auto.create.topics.enable"  = "false"
     "delete.topic.enable"        = "true"

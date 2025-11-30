@@ -48,10 +48,9 @@ variable "msk_scram_secret_names" {
   description = "Map of SCRAM user names to their Secrets Manager secret names"
 }
 
-variable "msk_security_group_ids" {
-  type        = list(string)
-  description = "List of MSK security group IDs (for Prometheus to scrape brokers)"
-  default     = []
+variable "msk_security_group_id" {
+  type        = string
+  description = "MSK security group ID (for Prometheus to scrape brokers)"
 }
 
 # =============================================================================
@@ -61,6 +60,11 @@ variable "msk_security_group_ids" {
 variable "database_master_secret_name" {
   type        = string
   description = "Name of Secrets Manager secret containing database credentials"
+}
+
+variable "database_security_group_id" {
+  type        = string
+  description = "Security group ID for RDS instance"
 }
 
 # =============================================================================

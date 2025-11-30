@@ -1,7 +1,3 @@
-# =============================================================================
-# Core Variables
-# =============================================================================
-
 variable "app_name" {
   type        = string
   description = "Application name"
@@ -19,11 +15,7 @@ variable "common_tags" {
   default     = {}
 }
 
-# =============================================================================
-# Network Variables
-# =============================================================================
-
-variable "private_hosted_zone_id" {
+variable "route53_private_zone_id" {
   type        = string
   description = "Private hosted zone ID for Route53 record (leave empty to skip)"
   default     = ""

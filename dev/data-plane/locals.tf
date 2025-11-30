@@ -5,7 +5,6 @@
 data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
 
-# VPC and Subnets
 data "aws_vpc" "selected" {
   tags = {
     Name = "${var.app_name}-vpc-${var.env}"
@@ -23,15 +22,10 @@ data "aws_subnets" "private" {
   }
 }
 
-# Route53 Private Zone - to get zone name for service DNS
 data "aws_route53_zone" "private" {
   zone_id      = var.route53_private_zone_id
   private_zone = true
 }
-
-# =============================================================================
-# Secrets Manager - Kafka Admin Credentials
-# =============================================================================
 
 data "aws_secretsmanager_secret" "kafka_admin" {
   name = var.msk_scram_secret_names["admin"]
@@ -40,10 +34,6 @@ data "aws_secretsmanager_secret" "kafka_admin" {
 data "aws_secretsmanager_secret_version" "kafka_admin" {
   secret_id = data.aws_secretsmanager_secret.kafka_admin.id
 }
-
-# =============================================================================
-# Secrets Manager - SCRAM Credentials for Connectors
-# =============================================================================
 
 data "aws_secretsmanager_secret" "debezium" {
   name = var.msk_scram_secret_names["debezium"]
@@ -69,9 +59,6 @@ data "aws_secretsmanager_secret_version" "s3_sink_public" {
   secret_id = data.aws_secretsmanager_secret.s3_sink_public.id
 }
 
-# =============================================================================
-# Secrets Manager - Database Credentials
-# =============================================================================
 
 data "aws_secretsmanager_secret" "database" {
   name = var.database_master_secret_name
@@ -81,10 +68,6 @@ data "aws_secretsmanager_secret_version" "database" {
   secret_id = data.aws_secretsmanager_secret.database.id
 }
 
-# =============================================================================
-# MSK Broker Nodes (for Prometheus scraping)
-# =============================================================================
-
 data "aws_msk_cluster" "main" {
   cluster_name = var.msk_cluster_name
 }
@@ -93,40 +76,47 @@ data "aws_msk_broker_nodes" "main" {
   cluster_arn = data.aws_msk_cluster.main.arn
 }
 
+# SSM Parameters for Image Tags
+data "aws_ssm_parameter" "schema_registry_image_tag" {
+  name = "/${var.app_name}/${var.env}/schema-registry/image-tag"
+}
+
+data "aws_ssm_parameter" "cruise_control_image_tag" {
+  name = "/${var.app_name}/${var.env}/cruise-control/image-tag"
+}
+
+data "aws_ssm_parameter" "prometheus_image_tag" {
+  name = "/${var.app_name}/${var.env}/prometheus/image-tag"
+}
+
+data "aws_ssm_parameter" "alertmanager_image_tag" {
+  name = "/${var.app_name}/${var.env}/alertmanager/image-tag"
+}
+
 # =============================================================================
 # Locals
 # =============================================================================
 
 locals {
-  # Naming
   app_name    = var.app_name
   environment = var.env
   common_tags = var.common_tags
 
-  # AWS Context
   region     = data.aws_region.current.name
   account_id = data.aws_caller_identity.current.account_id
 
-  # Network (from data sources)
-  vpc_id             = data.aws_vpc.selected.id
-  vpc_cidr           = data.aws_vpc.selected.cidr_block
-  private_subnet_ids = data.aws_subnets.private.ids
-
-  # MSK Bootstrap endpoint via NLB
+  vpc_id                 = data.aws_vpc.selected.id
+  vpc_cidr               = data.aws_vpc.selected.cidr_block
+  private_subnet_ids     = data.aws_subnets.private.ids
   msk_bootstrap_endpoint = var.msk_bootstrap_brokers_nlb
 
-  # =============================================================================
-  # FIX: SINGLE SOURCE OF TRUTH FOR TOPICS
-  # All topic names defined here and referenced everywhere else
-  # =============================================================================
-
-  # CDC Topic Configuration - MNPI (Sensitive)
+  # CDC Topic Configuration - MNPI
   cdc_topic_config_mnpi = {
     "cdc.trades.mnpi" = {
       table              = "trades"
       replication_factor = 3
       partitions         = 6
-      retention_ms       = "604800000" # 7 days
+      retention_ms       = "604800000"
       compression        = "lz4"
     }
     "cdc.orders.mnpi" = {
@@ -145,7 +135,7 @@ locals {
     }
   }
 
-  # CDC Topic Configuration - Public (Non-Sensitive)
+  # CDC Topic Configuration - Public
   cdc_topic_config_public = {
     "cdc.market_data.public" = {
       table              = "market_data"
@@ -158,13 +148,13 @@ locals {
       table              = "reference_data"
       replication_factor = 3
       partitions         = 3
-      retention_ms       = "2592000000" # 30 days
+      retention_ms       = "2592000000"
       compression        = "snappy"
       cleanup_policy     = "compact"
     }
   }
 
-  # Derived topic lists (for use in other resources)
+  # Derived topic lists
   cdc_topics_mnpi   = keys(local.cdc_topic_config_mnpi)
   cdc_topics_public = keys(local.cdc_topic_config_public)
   all_cdc_topics    = concat(local.cdc_topics_mnpi, local.cdc_topics_public)
@@ -178,10 +168,7 @@ locals {
   # Schema history topic
   schema_history_topic = "schema-changes.${var.app_name}-cdc"
 
-  # =============================================================================
   # Credentials Parsing
-  # =============================================================================
-
   kafka_admin_creds    = jsondecode(data.aws_secretsmanager_secret_version.kafka_admin.secret_string)
   debezium_creds       = jsondecode(data.aws_secretsmanager_secret_version.debezium.secret_string)
   s3_sink_mnpi_creds   = jsondecode(data.aws_secretsmanager_secret_version.s3_sink_mnpi.secret_string)
@@ -194,10 +181,7 @@ locals {
   s3_sink_public_scram_jaas_config = "org.apache.kafka.common.security.scram.ScramLoginModule required username=\"${local.s3_sink_public_creds.username}\" password=\"${local.s3_sink_public_creds.password}\";"
   kafka_admin_scram_jaas_config    = "org.apache.kafka.common.security.scram.ScramLoginModule required username=\"${local.kafka_admin_creds.username}\" password=\"${local.kafka_admin_creds.password}\";"
 
-  # =============================================================================
   # ECS Container Images
-  # =============================================================================
-
   ecr_registry = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${data.aws_region.current.name}.amazonaws.com"
 
   schema_registry_image = "${local.ecr_registry}/confluentinc/cp-schema-registry:${data.aws_ssm_parameter.schema_registry_image_tag.value}"
@@ -209,13 +193,10 @@ locals {
   route53_zone_name   = trimsuffix(data.aws_route53_zone.private.name, ".")
   schema_registry_url = "http://schema-registry.${local.route53_zone_name}:8081"
 
-  # Kafka credentials secret ARN
+  # Kafka admin credentials secret ARN
   kafka_credentials_secret_arn = data.aws_secretsmanager_secret.kafka_admin.arn
 
-  # =============================================================================
   # Cruise Control Configuration
-  # =============================================================================
-
   cruise_control_goals = "com.linkedin.kafka.cruisecontrol.analyzer.goals.RackAwareGoal,com.linkedin.kafka.cruisecontrol.analyzer.goals.ReplicaCapacityGoal,com.linkedin.kafka.cruisecontrol.analyzer.goals.DiskCapacityGoal,com.linkedin.kafka.cruisecontrol.analyzer.goals.NetworkInboundCapacityGoal,com.linkedin.kafka.cruisecontrol.analyzer.goals.NetworkOutboundCapacityGoal,com.linkedin.kafka.cruisecontrol.analyzer.goals.CpuCapacityGoal,com.linkedin.kafka.cruisecontrol.analyzer.goals.ReplicaDistributionGoal,com.linkedin.kafka.cruisecontrol.analyzer.goals.DiskUsageDistributionGoal,com.linkedin.kafka.cruisecontrol.analyzer.goals.LeaderReplicaDistributionGoal"
 
   cruise_control_properties = {
@@ -235,11 +216,7 @@ locals {
     "default.goals" = local.cruise_control_goals
   }
 
-  # =============================================================================
   # Prometheus Configuration
-  # =============================================================================
-
-  # MSK broker hostnames for scraping
   msk_broker_hostnames      = [for node in data.aws_msk_broker_nodes.main.node_info_list : one(node.endpoints)]
   msk_jmx_targets           = [for host in local.msk_broker_hostnames : "${host}:11001"]
   msk_node_exporter_targets = [for host in local.msk_broker_hostnames : "${host}:11002"]
@@ -269,10 +246,7 @@ locals {
           - targets: ['cruise-control.${local.route53_zone_name}:9090']
   EOT
 
-  # =============================================================================
   # Prometheus Alert Rules
-  # =============================================================================
-
   broker_alert_rules = [
     {
       alert = "MSKBrokerDiskUsageHigh"
@@ -362,10 +336,7 @@ locals {
     ]
   })
 
-  # =============================================================================
   # Alertmanager Configuration
-  # =============================================================================
-
   alertmanager_config_content = <<-EOT
     global:
       pagerduty_url: "https://events.pagerduty.com/v2/enqueue"
@@ -391,24 +362,4 @@ locals {
           - service_key: "${var.pagerduty_integration_key_critical}"
             description: "{{ .CommonAnnotations.summary }}"
   EOT
-}
-
-# =============================================================================
-# SSM Parameters for Image Tags
-# =============================================================================
-
-data "aws_ssm_parameter" "schema_registry_image_tag" {
-  name = "/${var.app_name}/${var.env}/schema-registry/image-tag"
-}
-
-data "aws_ssm_parameter" "cruise_control_image_tag" {
-  name = "/${var.app_name}/${var.env}/cruise-control/image-tag"
-}
-
-data "aws_ssm_parameter" "prometheus_image_tag" {
-  name = "/${var.app_name}/${var.env}/prometheus/image-tag"
-}
-
-data "aws_ssm_parameter" "alertmanager_image_tag" {
-  name = "/${var.app_name}/${var.env}/alertmanager/image-tag"
 }

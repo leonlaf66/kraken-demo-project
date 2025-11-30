@@ -1,13 +1,5 @@
-# =============================================================================
-# 1. Debezium CDC Source Connector
-# =============================================================================
+# Debezium
 # Reads from PostgreSQL, writes to Kafka topics
-# Schema Registry is available for consumers to register/fetch schemas
-#
-# FIX: Now uses local.* for topic lists and table include list (single source of truth)
-# FIX: Database credentials now reference Secrets Manager ARN instead of plain text
-# =============================================================================
-
 module "debezium_cdc_source" {
   source = "git::https://github.com/leonlaf66/kraken-demo-module.git//msk-connect?ref=main"
 
@@ -18,42 +10,33 @@ module "debezium_cdc_source" {
   connector_type       = "source"
   kafkaconnect_version = "2.7.1"
 
-  # Network
   vpc_id     = local.vpc_id
   subnet_ids = local.private_subnet_ids
 
-  # MSK - NLB endpoint with SCRAM
   msk_cluster_arn         = var.msk_cluster_arn
   msk_bootstrap_servers   = local.msk_bootstrap_endpoint
   msk_authentication_type = "NONE"
   msk_kms_key_arn         = var.msk_kms_key_arn
 
-  # FIX: Using local.all_cdc_topics from single source of truth
   kafka_topics_write = local.all_cdc_topics
   kafka_topics_read  = []
 
-  # RDS Secret
   rds_secret_arn      = data.aws_secretsmanager_secret.database.arn
   secrets_kms_key_arn = null
 
-  # Plugin
   custom_plugin_arn        = var.debezium_plugin_arn
   custom_plugin_revision   = var.debezium_plugin_revision
   custom_plugin_bucket_arn = var.plugin_bucket_arn
 
-  # No S3 for source connector
   s3_sink_bucket_arn = null
   s3_kms_key_arn     = null
 
   # Connector Configuration
-  # FIX: Credentials now use ${secretsManager:ARN:key} syntax for MSK Connect
-  # This avoids exposing passwords in Terraform state
   connector_configuration = {
     # Connector Class
     "connector.class" = "io.debezium.connector.postgresql.PostgresConnector"
 
     # Database Connection - Using Secrets Manager references
-    # MSK Connect supports ${secretsManager:secret-arn:json-key} syntax
     "database.hostname" = "$${secretsManager:${data.aws_secretsmanager_secret.database.arn}:host}"
     "database.port"     = "$${secretsManager:${data.aws_secretsmanager_secret.database.arn}:port}"
     "database.user"     = "$${secretsManager:${data.aws_secretsmanager_secret.database.arn}:username}"
@@ -86,7 +69,6 @@ module "debezium_cdc_source" {
     # Snapshot
     "snapshot.mode" = "initial"
 
-    # FIX: Schema history topic from single source of truth
     "schema.history.internal.kafka.bootstrap.servers" = local.msk_bootstrap_endpoint
     "schema.history.internal.kafka.topic"             = local.schema_history_topic
 
@@ -98,11 +80,11 @@ module "debezium_cdc_source" {
     "schema.history.internal.consumer.sasl.mechanism"    = "SCRAM-SHA-512"
     "schema.history.internal.consumer.sasl.jaas.config"  = local.debezium_scram_jaas_config
 
-    # Converters - JSON with schema
-    "key.converter"                  = "org.apache.kafka.connect.json.JsonConverter"
-    "key.converter.schemas.enable"   = "true"
-    "value.converter"                = "org.apache.kafka.connect.json.JsonConverter"
-    "value.converter.schemas.enable" = "true"
+    # Converters
+    "key.converter"                       = "io.confluent.connect.json.JsonSchemaConverter"
+    "key.converter.schema.registry.url"   = local.schema_registry_url
+    "value.converter"                     = "io.confluent.connect.json.JsonSchemaConverter"
+    "value.converter.schema.registry.url" = local.schema_registry_url
 
     # Performance
     "max.batch.size"   = "2048"
@@ -121,16 +103,11 @@ module "debezium_cdc_source" {
   log_retention_in_days = 7
   common_tags           = var.common_tags
 
-  depends_on = [module.streaming_services]
+  depends_on = [module.streaming_services, module.kafka]
 }
 
-# =============================================================================
-# 2. S3 Sink Connector - MNPI Zone
-# =============================================================================
+# S3 Sink Connector - MNPI
 # Reads MNPI topics, writes to S3 MNPI bucket
-# FIX: Uses local.cdc_topics_mnpi from single source of truth
-# =============================================================================
-
 module "s3_sink_mnpi" {
   source = "git::https://github.com/leonlaf66/kraken-demo-module.git//msk-connect?ref=main"
 
@@ -141,49 +118,41 @@ module "s3_sink_mnpi" {
   connector_type       = "sink"
   kafkaconnect_version = "2.7.1"
 
-  # Network
   vpc_id     = local.vpc_id
   subnet_ids = local.private_subnet_ids
 
-  # MSK
   msk_cluster_arn         = var.msk_cluster_arn
   msk_bootstrap_servers   = local.msk_bootstrap_endpoint
   msk_authentication_type = "NONE"
   msk_kms_key_arn         = var.msk_kms_key_arn
 
-  # FIX: Using local.cdc_topics_mnpi from single source of truth
   kafka_topics_write = []
   kafka_topics_read  = local.cdc_topics_mnpi
 
-  # No RDS access needed
   rds_secret_arn      = null
   secrets_kms_key_arn = null
 
-  # Plugin
   custom_plugin_arn        = var.s3_sink_plugin_arn
   custom_plugin_revision   = var.s3_sink_plugin_revision
   custom_plugin_bucket_arn = var.plugin_bucket_arn
 
-  # S3 - MNPI bucket only
   s3_sink_bucket_arn = var.bucket_raw_mnpi_arn
   s3_kms_key_arn     = var.kms_key_mnpi_arn
 
   # Connector Configuration
   connector_configuration = {
     "connector.class" = "io.confluent.connect.s3.S3SinkConnector"
-
-    # FIX: Topics from single source of truth
-    "topics" = join(",", local.cdc_topics_mnpi)
+    "topics"          = join(",", local.cdc_topics_mnpi)
 
     # S3
     "s3.bucket.name" = var.bucket_raw_mnpi_id
     "s3.region"      = local.region
 
-    # Storage - JSON format
+    # Storage
     "storage.class" = "io.confluent.connect.s3.storage.S3Storage"
     "format.class"  = "io.confluent.connect.s3.format.json.JsonFormat"
 
-    # Partitioning - Hourly for MNPI (high volume)
+    # Partitioning
     "partitioner.class"     = "io.confluent.connect.storage.partitioner.TimeBasedPartitioner"
     "path.format"           = "'year'=YYYY/'month'=MM/'day'=dd/'hour'=HH"
     "partition.duration.ms" = "3600000"
@@ -196,7 +165,7 @@ module "s3_sink_mnpi" {
     "rotate.interval.ms"          = "60000"
     "rotate.schedule.interval.ms" = "3600000"
 
-    # Converters - JSON
+    # Converters
     "key.converter"                  = "org.apache.kafka.connect.json.JsonConverter"
     "key.converter.schemas.enable"   = "false"
     "value.converter"                = "org.apache.kafka.connect.json.JsonConverter"
@@ -210,7 +179,7 @@ module "s3_sink_mnpi" {
     "tasks.max" = "3"
   }
 
-  # Autoscaling - Higher for MNPI
+  # Autoscaling
   autoscaling_mcu_count        = 1
   autoscaling_min_worker_count = 1
   autoscaling_max_worker_count = 4
@@ -220,16 +189,11 @@ module "s3_sink_mnpi" {
   log_retention_in_days = 7
   common_tags           = var.common_tags
 
-  depends_on = [module.streaming_services]
+  depends_on = [module.streaming_services, module.kafka]
 }
 
-# =============================================================================
-# 3. S3 Sink Connector - Public Zone
-# =============================================================================
+# S3 Sink Connector - Public
 # Reads Public topics, writes to S3 Public bucket
-# FIX: Uses local.cdc_topics_public from single source of truth
-# =============================================================================
-
 module "s3_sink_public" {
   source = "git::https://github.com/leonlaf66/kraken-demo-module.git//msk-connect?ref=main"
 
@@ -240,49 +204,41 @@ module "s3_sink_public" {
   connector_type       = "sink"
   kafkaconnect_version = "2.7.1"
 
-  # Network
   vpc_id     = local.vpc_id
   subnet_ids = local.private_subnet_ids
 
-  # MSK
   msk_cluster_arn         = var.msk_cluster_arn
   msk_bootstrap_servers   = local.msk_bootstrap_endpoint
   msk_authentication_type = "NONE"
   msk_kms_key_arn         = var.msk_kms_key_arn
 
-  # FIX: Using local.cdc_topics_public from single source of truth
   kafka_topics_write = []
   kafka_topics_read  = local.cdc_topics_public
 
-  # No RDS access needed
   rds_secret_arn      = null
   secrets_kms_key_arn = null
 
-  # Plugin
   custom_plugin_arn        = var.s3_sink_plugin_arn
   custom_plugin_revision   = var.s3_sink_plugin_revision
   custom_plugin_bucket_arn = var.plugin_bucket_arn
 
-  # S3 - Public bucket only
   s3_sink_bucket_arn = var.bucket_raw_public_arn
   s3_kms_key_arn     = var.kms_key_public_arn
 
   # Connector Configuration
   connector_configuration = {
     "connector.class" = "io.confluent.connect.s3.S3SinkConnector"
-
-    # FIX: Topics from single source of truth
-    "topics" = join(",", local.cdc_topics_public)
+    "topics"          = join(",", local.cdc_topics_public)
 
     # S3
     "s3.bucket.name" = var.bucket_raw_public_id
     "s3.region"      = local.region
 
-    # Storage - JSON format
+    # Storage
     "storage.class" = "io.confluent.connect.s3.storage.S3Storage"
     "format.class"  = "io.confluent.connect.s3.format.json.JsonFormat"
 
-    # Partitioning - Daily for Public (lower volume)
+    # Partitioning
     "partitioner.class"     = "io.confluent.connect.storage.partitioner.TimeBasedPartitioner"
     "path.format"           = "'year'=YYYY/'month'=MM/'day'=dd"
     "partition.duration.ms" = "86400000"
@@ -295,7 +251,7 @@ module "s3_sink_public" {
     "rotate.interval.ms"          = "300000"
     "rotate.schedule.interval.ms" = "86400000"
 
-    # Converters - JSON
+    # Converters
     "key.converter"                  = "org.apache.kafka.connect.json.JsonConverter"
     "key.converter.schemas.enable"   = "false"
     "value.converter"                = "org.apache.kafka.connect.json.JsonConverter"
@@ -319,5 +275,5 @@ module "s3_sink_public" {
   log_retention_in_days = 7
   common_tags           = var.common_tags
 
-  depends_on = [module.streaming_services]
+  depends_on = [module.streaming_services, module.kafka]
 }
