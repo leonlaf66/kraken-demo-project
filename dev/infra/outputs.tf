@@ -115,11 +115,6 @@ output "cloudtrail_name" {
   value       = module.storage.cloudtrail_name
 }
 
-output "audit_bucket_name" {
-  description = "Audit bucket name"
-  value       = module.storage.audit_bucket_name
-}
-
 # =============================================================================
 # Database Module Outputs
 # =============================================================================
