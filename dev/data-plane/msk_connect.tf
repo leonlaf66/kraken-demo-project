@@ -1,7 +1,7 @@
 # Debezium
 # Reads from PostgreSQL, writes to Kafka topics
 module "debezium_cdc_source" {
-  source = "git::https://github.com/leonlaf66/kraken-demo-module.git//msk-connect?ref=main"
+  source = "git::https://github.com/leonlaf66/kraken-demo-module.git//msk-connect?ref=v1.0.0"
 
   connector_name       = "debezium-postgres-cdc-${var.env}"
   env                  = var.env
@@ -109,7 +109,7 @@ module "debezium_cdc_source" {
 # S3 Sink Connector - MNPI
 # Reads MNPI topics, writes to S3 MNPI bucket
 module "s3_sink_mnpi" {
-  source = "git::https://github.com/leonlaf66/kraken-demo-module.git//msk-connect?ref=main"
+  source = "git::https://github.com/leonlaf66/kraken-demo-module.git//msk-connect?ref=v1.0.0"
 
   connector_name       = "s3-sink-raw-mnpi-${var.env}"
   env                  = var.env
@@ -195,7 +195,7 @@ module "s3_sink_mnpi" {
 # S3 Sink Connector - Public
 # Reads Public topics, writes to S3 Public bucket
 module "s3_sink_public" {
-  source = "git::https://github.com/leonlaf66/kraken-demo-module.git//msk-connect?ref=main"
+  source = "git::https://github.com/leonlaf66/kraken-demo-module.git//msk-connect?ref=v1.0.0"
 
   connector_name       = "s3-sink-raw-public-${var.env}"
   env                  = var.env

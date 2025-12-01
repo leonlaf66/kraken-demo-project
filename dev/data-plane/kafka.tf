@@ -1,5 +1,5 @@
 module "kafka" {
-  source = "git::https://github.com/leonlaf66/kraken-demo-module.git//kafka-data-plane?ref=main"
+  source = "git::https://github.com/leonlaf66/kraken-demo-module.git//kafka-data-plane?ref=v1.0.0"
 
   bootstrap_servers    = var.msk_bootstrap_brokers_nlb
   kafka_admin_username = local.kafka_admin_creds.username

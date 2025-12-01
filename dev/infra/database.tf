@@ -1,5 +1,5 @@
 module "database" {
-  source = "git::https://github.com/leonlaf66/kraken-demo-module.git//database?ref=main"
+  source = "git::https://github.com/leonlaf66/kraken-demo-module.git//database?ref=v1.0.0"
 
   app_name    = var.app_name
   env         = var.env

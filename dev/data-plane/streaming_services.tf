@@ -1,6 +1,6 @@
 
 module "streaming_services" {
-  source = "git::https://github.com/leonlaf66/kraken-demo-module.git//ecs-service?ref=main"
+  source = "git::https://github.com/leonlaf66/kraken-demo-module.git//ecs-service?ref=v1.0.0"
 
   app_name       = local.app_name
   environment    = local.environment
