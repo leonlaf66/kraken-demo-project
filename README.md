@@ -21,98 +21,37 @@ dev/
 
 ## Architecture
 
+**Data Pipeline:**
 ```
-┌──────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                                         Kraken Data Lake Platform                                        │
-├──────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                                          │
-│  ┌─────────────────────────────────────────────────────────────────────────────────────────────────────┐ │
-│  │                                    Platform Services (ECS Fargate)                                  │ │
-│  │                                                                                                     │ │
-│  │   ┌─────────────────┐   ┌─────────────────┐   ┌─────────────────┐   ┌─────────────────┐            │ │
-│  │   │ Schema Registry │   │ Cruise Control  │   │   Prometheus    │   │  Alertmanager   │            │ │
-│  │   │  (port 8081)    │   │  (port 9090)    │   │   (port 9090)   │   │   (port 9093)   │            │ │
-│  │   └────────┬────────┘   └────────┬────────┘   └────────┬────────┘   └─────────────────┘            │ │
-│  │            │ schema              │ rebalance           │ metrics                                   │ │
-│  │            │ validation          │ partitions          │ collection                                │ │
-│  │            ▼                     ▼                     ▼                                           │ │
-│  └────────────┼─────────────────────┼─────────────────────┼───────────────────────────────────────────┘ │
-│               │                     │                     │                                             │
-│  ┌────────────┼─────────────────────┼─────────────────────┼───────────────────────────────────────────┐ │
-│  │            │                     │                     │              Streaming Layer              │ │
-│  │            │                     ▼                     │                                           │ │
-│  │            │            ┌─────────────────┐            │                                           │ │
-│  │            └───────────▶│   MSK Cluster   │◀───────────┘                                           │ │
-│  │                         │  (SCRAM Auth)   │                                                        │ │
-│  │                         │   ┌─────────────────────────────────────┐                                │ │
-│  │                         │   │            Topics                   │                                │ │
-│  │                         │   │  ┌───────────┐    ┌───────────┐     │                                │ │
-│  │                         │   │  │ cdc.*.mnpi│    │cdc.*.public│    │                                │ │
-│  │                         │   │  └───────────┘    └───────────┘     │                                │ │
-│  │                         │   └─────────────────────────────────────┘                                │ │
-│  │                         └───────────┬─────────────────┬───────────┘                                │ │
-│  │                                     │                 │                                            │ │
-│  │                                     ▼                 ▼                                            │ │
-│  │  ┌─────────────────┐       ┌─────────────────┐ ┌─────────────────┐                                 │ │
-│  │  │    Debezium     │──────▶│  S3 Sink MNPI   │ │ S3 Sink Public  │                                 │ │
-│  │  │  (CDC Source)   │ CDC   │  (MSK Connect)  │ │  (MSK Connect)  │                                 │ │
-│  │  │  (MSK Connect)  │       └────────┬────────┘ └────────┬────────┘                                 │ │
-│  │  └────────▲────────┘                │                   │                                          │ │
-│  │           │                         │                   │                                          │ │
-│  └───────────┼─────────────────────────┼───────────────────┼──────────────────────────────────────────┘ │
-│              │ CDC                     │                   │                                            │
-│              │                         ▼                   ▼                                            │
-│  ┌───────────┴───────┐       ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │    PostgreSQL     │       │                      S3 Data Lake (storage)                         │   │
-│  │      (RDS)        │       │                                                                     │   │
-│  │                   │       │   ┌─────────────────────────┐   ┌─────────────────────────┐         │   │
-│  │ ┌───────────────┐ │       │   │      MNPI Zone          │   │     Public Zone         │         │   │
-│  │ │ trades        │ │       │   │   (KMS: kms_mnpi)       │   │  (KMS: kms_public)      │         │   │
-│  │ │ orders        │ │       │   │                         │   │                         │         │   │
-│  │ │ positions     │ │       │   │  ┌─────────────────┐    │   │  ┌─────────────────┐    │         │   │
-│  │ │ market_data   │ │       │   │  │ raw_mnpi        │    │   │  │ raw_public      │    │         │   │
-│  │ │ reference_data│ │       │   │  │ curated_mnpi    │    │   │  │ curated_public  │    │         │   │
-│  │ └───────────────┘ │       │   │  │ analytics_mnpi  │    │   │  │ analytics_public│    │         │   │
-│  └───────────────────┘       │   │  └─────────────────┘    │   │  └─────────────────┘    │         │   │
-│                              │   └─────────────────────────┘   └─────────────────────────┘         │   │
-│                              │                                                                     │   │
-│                              └──────────────────────────────┬──────────────────────────────────────┘   │
-│                                                             │                                          │
-│  ┌──────────────────────────────────────────────────────────┼──────────────────────────────────────┐   │
-│  │                                   Query Layer            │                                      │   │
-│  │                                                          ▼                                      │   │
-│  │                                                 ┌─────────────────┐                             │   │
-│  │                                                 │  Glue Catalog   │                             │   │
-│  │                                                 │   (metadata)    │                             │   │
-│  │                                                 └────────┬────────┘                             │   │
-│  │                                                          │ schema                               │   │
-│  │   ┌─────────────────┐   ┌─────────────────┐   ┌─────────▼────────┐                             │   │
-│  │   │Finance Analysts │   │  Data Analysts  │   │     Athena       │                             │   │
-│  │   │ (MNPI+Public)   │──▶│  (Public only)  │──▶│  (Query Engine)  │                             │   │
-│  │   │  MFA Required   │   │                 │   │                  │                             │   │
-│  │   └─────────────────┘   └─────────────────┘   └──────────────────┘                             │   │
-│  │                                                          │                                      │   │
-│  │   ┌─────────────────┐                                    │ query                                │   │
-│  │   │ Data Engineers  │────────────────────────────────────┘                                      │   │
-│  │   │ (All Layers)    │                                                                           │   │
-│  │   │  MFA Required   │                                                                           │   │
-│  │   └─────────────────┘                                                                           │   │
-│  └─────────────────────────────────────────────────────────────────────────────────────────────────┘   │
-│                                                                                                          │
-└──────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+                         Schema Registry
+                      (schema management)
+                              │
+                              ▼
+PostgreSQL ──▶ Debezium ──▶ MSK ──▶ S3 Sink ──▶ S3 Data Lake ◀── Athena
+   (RDS)     (msk-connect)  (msk)  (msk-connect)   (storage)     (athena)
+                                                        │
+                                                        ▼
+                                                  Glue Catalog
+                                                   (metadata)
 ```
-
-**Data Flow:**
-1. **PostgreSQL → Debezium**: CDC captures row-level changes from source tables
-2. **Debezium → MSK**: Publish CDC events to Kafka topics (MNPI/Public separated by topic name)
-3. **MSK → S3 Sink**: Write events to S3 raw layer buckets (partitioned by `year/month/day/hour`)
-4. **S3 ← Glue Catalog**: Glue stores table metadata and schema information
-5. **Athena → S3**: Query engine reads data directly from S3, using Glue for metadata
 
 **Platform Services (ECS Fargate):**
-- **Schema Registry**: Schema versioning and compatibility validation
-- **Cruise Control**: MSK cluster rebalancing and partition management
-- **Prometheus + Alertmanager**: Metrics collection and alerting
+```
+┌─────────────────┬─────────────────┬─────────────────┬─────────────────┐
+│ Schema Registry │  Cruise Control │   Prometheus    │  Alertmanager   │
+│ (schema mgmt)   │ (cluster mgmt)  │  (metrics)      │   (alerting)    │
+└─────────────────┴─────────────────┴─────────────────┴─────────────────┘
+```
+
+**Data Isolation:**
+```
+MNPI Zone (sensitive)              Public Zone (non-sensitive)
+├── cdc.*.mnpi (topics)            ├── cdc.*.public (topics)
+├── raw_mnpi (S3)                  ├── raw_public (S3)
+├── curated_mnpi (S3)              ├── curated_public (S3)
+├── analytics_mnpi (S3)            ├── analytics_public (S3)
+└── KMS: kms_mnpi                  └── KMS: kms_public
+```
 
 ## Spacelift Configuration
 
