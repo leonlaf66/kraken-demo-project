@@ -5,6 +5,10 @@ locals {
     "s3_sink_mnpi",
     "s3_sink_public",
   ])
+  common_tags = merge(var.common_tags, {
+    Name        = var.app_name
+    Environment = var.env
+  })
 }
 
 data "aws_caller_identity" "current" {}

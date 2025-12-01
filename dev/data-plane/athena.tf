@@ -5,7 +5,7 @@ module "athena" {
   env         = var.env
   region      = local.region
   account_id  = local.account_id
-  common_tags = var.common_tags
+  common_tags = local.common_tags
 
   # S3 Buckets
   buckets = {

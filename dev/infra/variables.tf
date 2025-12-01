@@ -34,5 +34,8 @@ variable "app_name" {
 variable "common_tags" {
   type        = map(string)
   description = "Common tags for all resources"
-  default     = {}
+  default = {
+    Team    = "SRE"
+    Project = "Kraken Demo"
+  }
 }

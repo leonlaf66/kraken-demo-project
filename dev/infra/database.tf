@@ -5,7 +5,7 @@ module "database" {
   env         = var.env
   region      = data.aws_region.current.name
   account_id  = data.aws_caller_identity.current.account_id
-  common_tags = var.common_tags
+  common_tags = local.common_tags
 
   vpc_id                = data.aws_vpc.selected.id
   db_subnet_ids         = data.aws_subnets.private.ids

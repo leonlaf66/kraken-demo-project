@@ -100,7 +100,6 @@ data "aws_ssm_parameter" "alertmanager_image_tag" {
 locals {
   app_name    = var.app_name
   environment = var.env
-  common_tags = var.common_tags
 
   region     = data.aws_region.current.name
   account_id = data.aws_caller_identity.current.account_id
@@ -109,6 +108,11 @@ locals {
   vpc_cidr               = data.aws_vpc.selected.cidr_block
   private_subnet_ids     = data.aws_subnets.private.ids
   msk_bootstrap_endpoint = var.msk_bootstrap_brokers_nlb
+
+  common_tags = merge(var.common_tags, {
+    Name        = var.app_name
+    Environment = var.env
+  })
 
   # CDC Topic Configuration - MNPI
   cdc_topic_config_mnpi = {

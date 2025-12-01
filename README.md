@@ -19,11 +19,106 @@ dev/
     └── ingress.tf          # Security group rules
 ```
 
+## Architecture
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                         Kraken Data Lake Platform                                        │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                                          │
+│  ┌─────────────────────────────────────────────────────────────────────────────────────────────────────┐ │
+│  │                                    Platform Services (ECS Fargate)                                  │ │
+│  │                                                                                                     │ │
+│  │   ┌─────────────────┐   ┌─────────────────┐   ┌─────────────────┐   ┌─────────────────┐            │ │
+│  │   │ Schema Registry │   │ Cruise Control  │   │   Prometheus    │   │  Alertmanager   │            │ │
+│  │   │  (port 8081)    │   │  (port 9090)    │   │   (port 9090)   │   │   (port 9093)   │            │ │
+│  │   └────────┬────────┘   └────────┬────────┘   └────────┬────────┘   └─────────────────┘            │ │
+│  │            │ schema              │ rebalance           │ metrics                                   │ │
+│  │            │ validation          │ partitions          │ collection                                │ │
+│  │            ▼                     ▼                     ▼                                           │ │
+│  └────────────┼─────────────────────┼─────────────────────┼───────────────────────────────────────────┘ │
+│               │                     │                     │                                             │
+│  ┌────────────┼─────────────────────┼─────────────────────┼───────────────────────────────────────────┐ │
+│  │            │                     │                     │              Streaming Layer              │ │
+│  │            │                     ▼                     │                                           │ │
+│  │            │            ┌─────────────────┐            │                                           │ │
+│  │            └───────────▶│   MSK Cluster   │◀───────────┘                                           │ │
+│  │                         │  (SCRAM Auth)   │                                                        │ │
+│  │                         │   ┌─────────────────────────────────────┐                                │ │
+│  │                         │   │            Topics                   │                                │ │
+│  │                         │   │  ┌───────────┐    ┌───────────┐     │                                │ │
+│  │                         │   │  │ cdc.*.mnpi│    │cdc.*.public│    │                                │ │
+│  │                         │   │  └───────────┘    └───────────┘     │                                │ │
+│  │                         │   └─────────────────────────────────────┘                                │ │
+│  │                         └───────────┬─────────────────┬───────────┘                                │ │
+│  │                                     │                 │                                            │ │
+│  │                                     ▼                 ▼                                            │ │
+│  │  ┌─────────────────┐       ┌─────────────────┐ ┌─────────────────┐                                 │ │
+│  │  │    Debezium     │──────▶│  S3 Sink MNPI   │ │ S3 Sink Public  │                                 │ │
+│  │  │  (CDC Source)   │ CDC   │  (MSK Connect)  │ │  (MSK Connect)  │                                 │ │
+│  │  │  (MSK Connect)  │       └────────┬────────┘ └────────┬────────┘                                 │ │
+│  │  └────────▲────────┘                │                   │                                          │ │
+│  │           │                         │                   │                                          │ │
+│  └───────────┼─────────────────────────┼───────────────────┼──────────────────────────────────────────┘ │
+│              │ CDC                     │                   │                                            │
+│              │                         ▼                   ▼                                            │
+│  ┌───────────┴───────┐       ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │    PostgreSQL     │       │                      S3 Data Lake (storage)                         │   │
+│  │      (RDS)        │       │                                                                     │   │
+│  │                   │       │   ┌─────────────────────────┐   ┌─────────────────────────┐         │   │
+│  │ ┌───────────────┐ │       │   │      MNPI Zone          │   │     Public Zone         │         │   │
+│  │ │ trades        │ │       │   │   (KMS: kms_mnpi)       │   │  (KMS: kms_public)      │         │   │
+│  │ │ orders        │ │       │   │                         │   │                         │         │   │
+│  │ │ positions     │ │       │   │  ┌─────────────────┐    │   │  ┌─────────────────┐    │         │   │
+│  │ │ market_data   │ │       │   │  │ raw_mnpi        │    │   │  │ raw_public      │    │         │   │
+│  │ │ reference_data│ │       │   │  │ curated_mnpi    │    │   │  │ curated_public  │    │         │   │
+│  │ └───────────────┘ │       │   │  │ analytics_mnpi  │    │   │  │ analytics_public│    │         │   │
+│  └───────────────────┘       │   │  └─────────────────┘    │   │  └─────────────────┘    │         │   │
+│                              │   └─────────────────────────┘   └─────────────────────────┘         │   │
+│                              │                                                                     │   │
+│                              └──────────────────────────────┬──────────────────────────────────────┘   │
+│                                                             │                                          │
+│  ┌──────────────────────────────────────────────────────────┼──────────────────────────────────────┐   │
+│  │                                   Query Layer            │                                      │   │
+│  │                                                          ▼                                      │   │
+│  │                                                 ┌─────────────────┐                             │   │
+│  │                                                 │  Glue Catalog   │                             │   │
+│  │                                                 │   (metadata)    │                             │   │
+│  │                                                 └────────┬────────┘                             │   │
+│  │                                                          │ schema                               │   │
+│  │   ┌─────────────────┐   ┌─────────────────┐   ┌─────────▼────────┐                             │   │
+│  │   │Finance Analysts │   │  Data Analysts  │   │     Athena       │                             │   │
+│  │   │ (MNPI+Public)   │──▶│  (Public only)  │──▶│  (Query Engine)  │                             │   │
+│  │   │  MFA Required   │   │                 │   │                  │                             │   │
+│  │   └─────────────────┘   └─────────────────┘   └──────────────────┘                             │   │
+│  │                                                          │                                      │   │
+│  │   ┌─────────────────┐                                    │ query                                │   │
+│  │   │ Data Engineers  │────────────────────────────────────┘                                      │   │
+│  │   │ (All Layers)    │                                                                           │   │
+│  │   │  MFA Required   │                                                                           │   │
+│  │   └─────────────────┘                                                                           │   │
+│  └─────────────────────────────────────────────────────────────────────────────────────────────────┘   │
+│                                                                                                          │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Data Flow:**
+1. **PostgreSQL → Debezium**: CDC captures row-level changes from source tables
+2. **Debezium → MSK**: Publish CDC events to Kafka topics (MNPI/Public separated by topic name)
+3. **MSK → S3 Sink**: Write events to S3 raw layer buckets (partitioned by `year/month/day/hour`)
+4. **S3 ← Glue Catalog**: Glue stores table metadata and schema information
+5. **Athena → S3**: Query engine reads data directly from S3, using Glue for metadata
+
+**Platform Services (ECS Fargate):**
+- **Schema Registry**: Schema versioning and compatibility validation
+- **Cruise Control**: MSK cluster rebalancing and partition management
+- **Prometheus + Alertmanager**: Metrics collection and alerting
+
 ## Spacelift Configuration
 
 ### Context Variables (Shared)
 
-Create a Spacelift Context with the following environment variables. These are shared across both stacks:
+Create a Spacelift Context with the following environment variables:
 
 | Environment Variable | Description | Example |
 |---------------------|-------------|---------|
@@ -32,8 +127,6 @@ Create a Spacelift Context with the following environment variables. These are s
 | `TF_VAR_aws_account_id` | AWS Account ID | `123456789012` |
 | `TF_VAR_iam_permissions_boundary_arn` | IAM permissions boundary | `arn:aws:iam::123456789012:policy/BoundaryPolicy` |
 | `TF_VAR_route53_private_zone_id` | Private hosted zone ID | `Z1234567890ABC` |
-
-> **Note**: The stacks use `data.aws_caller_identity` and `data.aws_region` for runtime lookups, but explicit variables ensure consistency across Spacelift runs.
 
 ### Stack Dependencies
 
@@ -53,11 +146,9 @@ infra ──────▶ data-plane
 
 ### Required Inputs (data-plane)
 
-**From Spacelift Context:**
+**From Spacelift Context:** Same as infra stack.
 
-Same context variables as infra stack.
-
-**From Infra Stack Outputs (Spacelift Stack Dependencies):**
+**From Infra Stack Outputs (via Spacelift Stack Dependencies):**
 
 | Variable | Infra Output |
 |----------|--------------|
@@ -70,23 +161,14 @@ Same context variables as infra stack.
 | `database_master_secret_name` | `database_master_secret_name` |
 | `database_security_group_id` | `database_security_group_id` |
 | `bucket_raw_mnpi_arn` | `bucket_raw_mnpi_arn` |
-| `bucket_raw_mnpi_id` | `bucket_raw_mnpi_id` |
 | `bucket_raw_public_arn` | `bucket_raw_public_arn` |
-| `bucket_raw_public_id` | `bucket_raw_public_id` |
-| `bucket_curated_mnpi_arn` | `bucket_curated_mnpi_arn` |
-| `bucket_curated_public_arn` | `bucket_curated_public_arn` |
-| `bucket_analytics_mnpi_arn` | `bucket_analytics_mnpi_arn` |
-| `bucket_analytics_public_arn` | `bucket_analytics_public_arn` |
+| `bucket_curated_*_arn` | `bucket_curated_*_arn` |
+| `bucket_analytics_*_arn` | `bucket_analytics_*_arn` |
 | `kms_key_mnpi_arn` | `kms_key_mnpi_arn` |
 | `kms_key_public_arn` | `kms_key_public_arn` |
-| `glue_database_raw_mnpi` | `glue_database_raw_mnpi` |
-| `glue_database_raw_public` | `glue_database_raw_public` |
-| `glue_database_curated_mnpi` | `glue_database_curated_mnpi` |
-| `glue_database_curated_public` | `glue_database_curated_public` |
-| `glue_database_analytics_mnpi` | `glue_database_analytics_mnpi` |
-| `glue_database_analytics_public` | `glue_database_analytics_public` |
+| `glue_database_*` | `glue_database_*` |
 
-**Additional Inputs (Stack Variables):**
+**Additional Stack Variables:**
 
 | Variable | Description |
 |----------|-------------|
@@ -94,12 +176,8 @@ Same context variables as infra stack.
 | `debezium_plugin_arn` | Debezium custom plugin ARN |
 | `s3_sink_plugin_arn` | S3 Sink custom plugin ARN |
 | `acm_certificate_arn` | ACM certificate ARN for HTTPS |
-| `pagerduty_integration_key_warning` | PagerDuty key (optional) |
-| `pagerduty_integration_key_critical` | PagerDuty key (optional) |
 
 ## Deployment
-
-### Via Spacelift
 
 1. Create Spacelift Context with shared variables
 2. Create `kraken-demo-dev-infra` stack, attach context
@@ -107,85 +185,13 @@ Same context variables as infra stack.
 4. Configure data-plane stack to receive outputs from infra
 5. Trigger runs
 
-### Local Testing
-
-```bash
-# Set environment variables (simulate Spacelift context)
-export TF_VAR_env=dev
-export TF_VAR_aws_region=us-east-1
-export TF_VAR_aws_account_id=123456789012
-export TF_VAR_iam_permissions_boundary_arn=arn:aws:iam::123456789012:policy/Boundary
-export TF_VAR_route53_private_zone_id=Z1234567890ABC
-
-# Infra stack
-cd dev/infra
-terraform init
-terraform plan
-
-# Data-plane stack (after infra is applied)
-cd ../data-plane
-terraform init
-terraform plan -var-file="../../vars/dev.tfvars"
-```
-
-## Data Flow
-
-```
-                                    ┌─────────────────────────────────────────┐
-                                    │          ECS Services                   │
-                                    │  ┌───────────────┐  ┌───────────────┐   │
-                                    │  │    Cruise     │  │  Prometheus   │   │
-                                    │  │   Control     │  │ + Alertmanager│   │
-                                    │  └───────┬───────┘  └───────┬───────┘   │
-                                    │          │ manage           │ monitor   │
-                                    │          ▼                  ▼           │
-                                    │  ┌─────────────────────────────────┐    │
-                                    │  │          MSK Cluster            │    │
-                                    │  └─────────────────────────────────┘    │
-                                    │                  ▲                      │
-                                    │                  │                      │
-                                    │  ┌───────────────┴───────────────┐      │
-                                    │  │       Schema Registry         │      │
-                                    │  └───────────────────────────────┘      │
-                                    └──────────────────┬──────────────────────┘
-                                                       │
-                                              (register schema)
-                                                       │
-┌─────────────┐    ┌─────────────────────┐            │           ┌─────────────────────┐    ┌─────────────┐
-│ PostgreSQL  │───▶│      Debezium       │────────────┴──────────▶│      S3 Sink        │───▶│  S3 Data    │
-│   (RDS)     │CDC │  (MSK Connect)      │    MSK Topics          │   (MSK Connect)     │    │   Lake      │
-└─────────────┘    └─────────────────────┘                        └─────────────────────┘    └──────┬──────┘
-                                                                                                    │
-                                                                                                    ▼
-                                                                                            ┌───────────────┐
-                                                                                            │ Glue Catalog  │
-                                                                                            └───────┬───────┘
-                                                                                                    │
-                                                                                                    ▼
-                                                                                            ┌───────────────┐
-                                                                                            │    Athena     │
-                                                                                            └───────────────┘
-```
-
-**Data Pipeline:**
-1. **PostgreSQL → Debezium**: CDC captures row-level changes
-2. **Debezium → Schema Registry**: Register/validate message schemas
-3. **Debezium → MSK**: Publish CDC events to Kafka topics (MNPI/Public separated)
-4. **MSK → S3 Sink**: Write events to S3 raw layer (partitioned by time)
-5. **S3 → Glue → Athena**: Query data via SQL
-
-**Platform Services (ECS):**
-- **Schema Registry**: Schema versioning and compatibility for Kafka messages
-- **Cruise Control**: MSK cluster rebalancing and optimization
-- **Prometheus + Alertmanager**: Metrics collection and alerting
-
 ## User Access Tiers
 
-| Role | MNPI | Layers | MFA |
-|------|------|--------|-----|
-| Finance Analysts | Yes | analytics | Required |
+| Role | MNPI Access | Data Layers | MFA Required |
+|------|-------------|-------------|--------------|
+| Finance Analysts | Yes | analytics | Yes |
 | Data Analysts | No | analytics | No |
-| Data Engineers | Yes | all | Required |
+| Data Engineers | Yes | raw, curated, analytics | Yes |
 
 ## Related Repositories
 

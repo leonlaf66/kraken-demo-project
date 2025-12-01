@@ -101,7 +101,7 @@ module "debezium_cdc_source" {
   autoscaling_scale_out_cpu    = 80
 
   log_retention_in_days = 7
-  common_tags           = var.common_tags
+  common_tags           = local.common_tags
 
   depends_on = [module.streaming_services, module.kafka]
 }
@@ -187,7 +187,7 @@ module "s3_sink_mnpi" {
   autoscaling_scale_out_cpu    = 80
 
   log_retention_in_days = 7
-  common_tags           = var.common_tags
+  common_tags           = local.common_tags
 
   depends_on = [module.streaming_services, module.kafka]
 }
@@ -273,7 +273,7 @@ module "s3_sink_public" {
   autoscaling_scale_out_cpu    = 80
 
   log_retention_in_days = 7
-  common_tags           = var.common_tags
+  common_tags           = local.common_tags
 
   depends_on = [module.streaming_services, module.kafka]
 }

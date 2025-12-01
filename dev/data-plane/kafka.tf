@@ -8,7 +8,7 @@ module "kafka" {
 
   msk_cluster_arn  = var.msk_cluster_arn
   msk_cluster_name = var.msk_cluster_name
-  common_tags      = var.common_tags
+  common_tags      = local.common_tags
 
   topics = concat(
     # MNPI Topics
