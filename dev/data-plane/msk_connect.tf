@@ -31,7 +31,7 @@ module "debezium_cdc_source" {
   s3_sink_bucket_arn = null
   s3_kms_key_arn     = null
 
-  # Connector Configuration
+  # Connector Configuration, document https://debezium.io/documentation/reference/stable/connectors/postgresql.html
   connector_configuration = {
     # Connector Class
     "connector.class" = "io.debezium.connector.postgresql.PostgresConnector"
@@ -139,7 +139,7 @@ module "s3_sink_mnpi" {
   s3_sink_bucket_arn = var.bucket_raw_mnpi_arn
   s3_kms_key_arn     = var.kms_key_mnpi_arn
 
-  # Connector Configuration
+  # Connector Configuration, document https://docs.confluent.io/kafka-connectors/s3-sink/current/configuration_options.html
   connector_configuration = {
     "connector.class" = "io.confluent.connect.s3.S3SinkConnector"
     "topics"          = join(",", local.cdc_topics_mnpi)
@@ -225,7 +225,7 @@ module "s3_sink_public" {
   s3_sink_bucket_arn = var.bucket_raw_public_arn
   s3_kms_key_arn     = var.kms_key_public_arn
 
-  # Connector Configuration
+  # Connector Configuration, document https://docs.confluent.io/kafka-connectors/s3-sink/current/configuration_options.html
   connector_configuration = {
     "connector.class" = "io.confluent.connect.s3.S3SinkConnector"
     "topics"          = join(",", local.cdc_topics_public)

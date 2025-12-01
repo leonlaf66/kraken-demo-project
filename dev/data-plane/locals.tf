@@ -107,7 +107,7 @@ locals {
   vpc_id                 = data.aws_vpc.selected.id
   vpc_cidr               = data.aws_vpc.selected.cidr_block
   private_subnet_ids     = data.aws_subnets.private.ids
-  msk_bootstrap_endpoint = var.msk_bootstrap_brokers_nlb
+  msk_bootstrap_endpoint = var.msk_route53_dns_name
 
   common_tags = merge(var.common_tags, {
     Name        = var.app_name
@@ -200,7 +200,7 @@ locals {
   # Kafka admin credentials secret ARN
   kafka_credentials_secret_arn = data.aws_secretsmanager_secret.kafka_admin.arn
 
-  # Cruise Control Configuration
+  # Cruise Control Configuration， document https://github.com/linkedin/cruise-control/wiki/Configurations
   cruise_control_goals = "com.linkedin.kafka.cruisecontrol.analyzer.goals.RackAwareGoal,com.linkedin.kafka.cruisecontrol.analyzer.goals.ReplicaCapacityGoal,com.linkedin.kafka.cruisecontrol.analyzer.goals.DiskCapacityGoal,com.linkedin.kafka.cruisecontrol.analyzer.goals.NetworkInboundCapacityGoal,com.linkedin.kafka.cruisecontrol.analyzer.goals.NetworkOutboundCapacityGoal,com.linkedin.kafka.cruisecontrol.analyzer.goals.CpuCapacityGoal,com.linkedin.kafka.cruisecontrol.analyzer.goals.ReplicaDistributionGoal,com.linkedin.kafka.cruisecontrol.analyzer.goals.DiskUsageDistributionGoal,com.linkedin.kafka.cruisecontrol.analyzer.goals.LeaderReplicaDistributionGoal"
 
   cruise_control_properties = {

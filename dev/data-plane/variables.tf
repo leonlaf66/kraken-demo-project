@@ -56,6 +56,11 @@ variable "msk_bootstrap_brokers_nlb" {
   description = "MSK bootstrap servers via NLB"
 }
 
+variable "msk_route53_dns_name" {
+  type        = string
+  description = "MSK bootstrap servers via NLB dns"
+}
+
 variable "msk_kms_key_arn" {
   type        = string
   description = "KMS key ARN for MSK cluster encryption"

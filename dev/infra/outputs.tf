@@ -116,6 +116,11 @@ output "msk_bootstrap_brokers_nlb" {
   value       = module.msk.bootstrap_brokers_nlb
 }
 
+output "msk_route53_dns_name" {
+  description = "Route53 DNS name for MSK bootstrap"
+  value       = module.msk.route53_dns_name
+}
+
 output "msk_security_group_id" {
   description = "Security group ID for MSK cluster"
   value       = module.msk.security_group_id
