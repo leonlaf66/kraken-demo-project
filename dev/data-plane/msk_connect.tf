@@ -166,17 +166,18 @@ module "s3_sink_mnpi" {
     "rotate.schedule.interval.ms" = "3600000"
 
     # Converters
-    "key.converter"                  = "org.apache.kafka.connect.json.JsonConverter"
-    "key.converter.schemas.enable"   = "false"
-    "value.converter"                = "org.apache.kafka.connect.json.JsonConverter"
-    "value.converter.schemas.enable" = "false"
+    "key.converter"                       = "org.apache.kafka.connect.json.JsonConverter"
+    "key.converter.schemas.enable"        = "false"
+    "value.converter"                     = "io.confluent.connect.json.JsonSchemaConverter"
+    "value.converter.schema.registry.url" = local.schema_registry_url
+    "value.converter.schemas.enable"      = "true"
 
     # Error Handling
     "errors.tolerance"            = "all"
     "errors.log.enable"           = "true"
     "errors.log.include.messages" = "true"
 
-    "tasks.max" = "3"
+    "tasks.max" = "15"
   }
 
   # Autoscaling
@@ -252,17 +253,18 @@ module "s3_sink_public" {
     "rotate.schedule.interval.ms" = "86400000"
 
     # Converters
-    "key.converter"                  = "org.apache.kafka.connect.json.JsonConverter"
-    "key.converter.schemas.enable"   = "false"
-    "value.converter"                = "org.apache.kafka.connect.json.JsonConverter"
-    "value.converter.schemas.enable" = "false"
+    "key.converter"                       = "org.apache.kafka.connect.json.JsonConverter"
+    "key.converter.schemas.enable"        = "false"
+    "value.converter"                     = "io.confluent.connect.json.JsonSchemaConverter"
+    "value.converter.schema.registry.url" = local.schema_registry_url
+    "value.converter.schemas.enable"      = "true"
 
     # Error Handling
     "errors.tolerance"            = "all"
     "errors.log.enable"           = "true"
     "errors.log.include.messages" = "true"
 
-    "tasks.max" = "2"
+    "tasks.max" = "12"
   }
 
   # Autoscaling
