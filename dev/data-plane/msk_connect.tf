@@ -150,7 +150,7 @@ module "s3_sink_mnpi" {
 
     # Storage
     "storage.class" = "io.confluent.connect.s3.storage.S3Storage"
-    "format.class"  = "io.confluent.connect.s3.format.json.JsonFormat"
+    "format.class"  = "io.confluent.connect.s3.format.parquet.ParquetFormat"
 
     # Partitioning
     "partitioner.class"     = "io.confluent.connect.storage.partitioner.TimeBasedPartitioner"
@@ -236,7 +236,7 @@ module "s3_sink_public" {
 
     # Storage
     "storage.class" = "io.confluent.connect.s3.storage.S3Storage"
-    "format.class"  = "io.confluent.connect.s3.format.json.JsonFormat"
+    "format.class"  = "io.confluent.connect.s3.format.parquet.ParquetFormat"
 
     # Partitioning
     "partitioner.class"     = "io.confluent.connect.storage.partitioner.TimeBasedPartitioner"
