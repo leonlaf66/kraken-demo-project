@@ -39,5 +39,14 @@ module "sg_ingress" {
       to_port                      = 9096
       ip_protocol                  = "tcp"
     }
+
+    "msk-from-ecs-streaming" = {
+      description                  = "Kafka SCRAM from ECS streaming services"
+      security_group_id            = var.msk_security_group_id
+      referenced_security_group_id = module.streaming_services.ecs_tasks_security_group_id
+      from_port                    = 9096
+      to_port                      = 9096
+      ip_protocol                  = "tcp"
+    }
   }
 }
