@@ -1,5 +1,5 @@
 module "msk" {
-  source = "git::https://github.com/leonlaf66/kraken-demo-module.git//msk?ref=v1.0.1"
+  source = "git::https://github.com/leonlaf66/kraken-demo-module.git//msk?ref=main"
 
   app_name    = var.app_name
   env         = var.env
