@@ -126,7 +126,7 @@ module "s3_sink_mnpi" {
   msk_authentication_type = "NONE"
   msk_kms_key_arn         = var.msk_kms_key_arn
 
-  kafka_topics_write = []
+  kafka_topics_write = ["dlq.cdc.mnpi"]
   kafka_topics_read  = local.cdc_topics_mnpi
 
   rds_secret_arn      = null
@@ -173,9 +173,12 @@ module "s3_sink_mnpi" {
     "value.converter.schemas.enable"      = "true"
 
     # Error Handling
-    "errors.tolerance"            = "all"
-    "errors.log.enable"           = "true"
-    "errors.log.include.messages" = "true"
+    "errors.tolerance"                                = "all"
+    "errors.log.enable"                               = "true"
+    "errors.log.include.messages"                     = "true"
+    "errors.deadletterqueue.topic.name"               = "dlq.cdc.mnpi"
+    "errors.deadletterqueue.topic.replication.factor" = "3"
+    "errors.deadletterqueue.context.headers.enable"   = "true"
 
     "tasks.max" = "15"
   }
@@ -213,7 +216,7 @@ module "s3_sink_public" {
   msk_authentication_type = "NONE"
   msk_kms_key_arn         = var.msk_kms_key_arn
 
-  kafka_topics_write = []
+  kafka_topics_write = [["dlq.cdc.public"]]
   kafka_topics_read  = local.cdc_topics_public
 
   rds_secret_arn      = null
@@ -260,9 +263,12 @@ module "s3_sink_public" {
     "value.converter.schemas.enable"      = "true"
 
     # Error Handling
-    "errors.tolerance"            = "all"
-    "errors.log.enable"           = "true"
-    "errors.log.include.messages" = "true"
+    "errors.tolerance"                                = "all"
+    "errors.log.enable"                               = "true"
+    "errors.log.include.messages"                     = "true"
+    "errors.deadletterqueue.topic.name"               = "dlq.cdc.public"
+    "errors.deadletterqueue.topic.replication.factor" = "3"
+    "errors.deadletterqueue.context.headers.enable"   = "true"
 
     "tasks.max" = "12"
   }
