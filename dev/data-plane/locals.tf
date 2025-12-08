@@ -159,9 +159,13 @@ locals {
   }
 
   dlq_topic_config = {
-    for topic_name, config in merge(local.cdc_topic_config_mnpi, local.cdc_topic_config_public) :
-    "dlq.${topic_name}" => {
-      source_topic       = topic_name
+    "dlq.cdc.mnpi" = {
+      replication_factor = 3
+      partitions         = 1
+      retention_ms       = "604800000"
+      compression        = "lz4"
+    }
+    "dlq.cdc.public" = {
       replication_factor = 3
       partitions         = 1
       retention_ms       = "604800000"
@@ -172,9 +176,9 @@ locals {
   # Derived topic lists
   cdc_topics_mnpi   = keys(local.cdc_topic_config_mnpi)
   cdc_topics_public = keys(local.cdc_topic_config_public)
-  dlq_topics_mnpi   = [for t in local.cdc_topics_mnpi : "dlq.${t}"]
-  dlq_topics_public = [for t in local.cdc_topics_public : "dlq.${t}"]
-  all_cdc_topics    = concat(local.cdc_topics_mnpi, local.cdc_topics_public, local.dlq_topics_mnpi, local.dlq_topics_public)
+  dlq_topics_mnpi   = ["dlq.cdc.mnpi"]
+  dlq_topics_public = ["dlq.cdc.public"]
+  all_cdc_topics    = concat(local.cdc_topics_mnpi, local.cdc_topics_public)
 
   # Table include list for Debezium (derived from topic config)
   debezium_table_include_list = join(",", [

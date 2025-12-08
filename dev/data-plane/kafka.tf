@@ -162,25 +162,23 @@ module "kafka" {
           }
         ]
       ]),
-      flatten([
-        for topic in local.dlq_topics_mnpi : [
-          {
-            resource_name = topic
-            resource_type = "Topic"
-            operation     = "Write"
-          },
-          {
-            resource_name = topic
-            resource_type = "Topic"
-            operation     = "Describe"
-          },
-          {
-            resource_name = topic
-            resource_type = "Topic"
-            operation     = "Create"
-          }
-        ]
-      ]),
+      [
+        {
+          resource_name = "dlq.cdc.mnpi"
+          resource_type = "Topic"
+          operation     = "Write"
+        },
+        {
+          resource_name = "dlq.cdc.mnpi"
+          resource_type = "Topic"
+          operation     = "Describe"
+        },
+        {
+          resource_name = "dlq.cdc.mnpi"
+          resource_type = "Topic"
+          operation     = "Create"
+        }
+      ],
       [
         {
           resource_name = "connect-s3-sink-raw-mnpi-*"
@@ -206,25 +204,23 @@ module "kafka" {
           }
         ]
       ]),
-      flatten([
-        for topic in local.dlq_topics_public : [
-          {
-            resource_name = topic
-            resource_type = "Topic"
-            operation     = "Write"
-          },
-          {
-            resource_name = topic
-            resource_type = "Topic"
-            operation     = "Describe"
-          },
-          {
-            resource_name = topic
-            resource_type = "Topic"
-            operation     = "Create"
-          }
-        ]
-      ]),
+      [
+        {
+          resource_name = "dlq.cdc.public"
+          resource_type = "Topic"
+          operation     = "Write"
+        },
+        {
+          resource_name = "dlq.cdc.public"
+          resource_type = "Topic"
+          operation     = "Describe"
+        },
+        {
+          resource_name = "dlq.cdc.public"
+          resource_type = "Topic"
+          operation     = "Create"
+        }
+      ],
       [
         {
           resource_name = "connect-s3-sink-raw-public-*"

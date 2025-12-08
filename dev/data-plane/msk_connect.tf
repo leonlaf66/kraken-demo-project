@@ -173,18 +173,14 @@ module "s3_sink_mnpi" {
     "value.converter.schemas.enable"      = "true"
 
     # Error Handling
-    "errors.tolerance"            = "all"
-    "errors.log.enable"           = "true"
-    "errors.log.include.messages" = "true"
-
-    "tasks.max" = "15"
-    # DLQ Configuration
     "errors.tolerance"                                = "all"
-    "errors.deadletterqueue.topic.name"               = "dlq.cdc.mnpi"  # 或者用动态的
-    "errors.deadletterqueue.topic.replication.factor" = "3"
-    "errors.deadletterqueue.context.headers.enable"   = "true"
     "errors.log.enable"                               = "true"
     "errors.log.include.messages"                     = "true"
+    "errors.deadletterqueue.topic.name"               = "dlq.cdc.mnpi"
+    "errors.deadletterqueue.topic.replication.factor" = "3"
+    "errors.deadletterqueue.context.headers.enable"   = "true"
+
+    "tasks.max" = "15"
   }
 
   # Autoscaling
@@ -267,19 +263,14 @@ module "s3_sink_public" {
     "value.converter.schemas.enable"      = "true"
 
     # Error Handling
-    "errors.tolerance"            = "all"
-    "errors.log.enable"           = "true"
-    "errors.log.include.messages" = "true"
-
-    "tasks.max" = "12"
-    
-    # DLQ Configuration
     "errors.tolerance"                                = "all"
+    "errors.log.enable"                               = "true"
+    "errors.log.include.messages"                     = "true"
     "errors.deadletterqueue.topic.name"               = "dlq.cdc.public"
     "errors.deadletterqueue.topic.replication.factor" = "3"
     "errors.deadletterqueue.context.headers.enable"   = "true"
-    "errors.log.enable"                               = "true"
-    "errors.log.include.messages"                     = "true"
+
+    "tasks.max" = "12"
   }
 
   # Autoscaling
