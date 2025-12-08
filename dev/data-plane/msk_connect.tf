@@ -126,7 +126,7 @@ module "s3_sink_mnpi" {
   msk_authentication_type = "NONE"
   msk_kms_key_arn         = var.msk_kms_key_arn
 
-  kafka_topics_write = []
+  kafka_topics_write = ["dlq.cdc.mnpi"]
   kafka_topics_read  = local.cdc_topics_mnpi
 
   rds_secret_arn      = null
@@ -216,7 +216,7 @@ module "s3_sink_public" {
   msk_authentication_type = "NONE"
   msk_kms_key_arn         = var.msk_kms_key_arn
 
-  kafka_topics_write = []
+  kafka_topics_write = [["dlq.cdc.public"]]
   kafka_topics_read  = local.cdc_topics_public
 
   rds_secret_arn      = null
