@@ -178,6 +178,13 @@ module "s3_sink_mnpi" {
     "errors.log.include.messages" = "true"
 
     "tasks.max" = "15"
+    # DLQ Configuration
+    "errors.tolerance"                                = "all"
+    "errors.deadletterqueue.topic.name"               = "dlq.cdc.mnpi"  # 或者用动态的
+    "errors.deadletterqueue.topic.replication.factor" = "3"
+    "errors.deadletterqueue.context.headers.enable"   = "true"
+    "errors.log.enable"                               = "true"
+    "errors.log.include.messages"                     = "true"
   }
 
   # Autoscaling
@@ -265,6 +272,14 @@ module "s3_sink_public" {
     "errors.log.include.messages" = "true"
 
     "tasks.max" = "12"
+    
+    # DLQ Configuration
+    "errors.tolerance"                                = "all"
+    "errors.deadletterqueue.topic.name"               = "dlq.cdc.public"
+    "errors.deadletterqueue.topic.replication.factor" = "3"
+    "errors.deadletterqueue.context.headers.enable"   = "true"
+    "errors.log.enable"                               = "true"
+    "errors.log.include.messages"                     = "true"
   }
 
   # Autoscaling

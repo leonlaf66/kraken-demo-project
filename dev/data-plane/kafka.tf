@@ -46,6 +46,20 @@ module "kafka" {
         }
       }
     ],
+    # DLQ Topics
+    [
+      for topic_name, config in local.dlq_topic_config : {
+        name               = topic_name
+        replication_factor = config.replication_factor
+        partitions         = config.partitions
+        config = {
+          "retention.ms"        = config.retention_ms
+          "compression.type"    = config.compression
+          "min.insync.replicas" = "2"
+          "cleanup.policy"      = "delete"
+        }
+      }
+    ],
     # Schema History Topic
     [
       {
@@ -148,6 +162,25 @@ module "kafka" {
           }
         ]
       ]),
+      flatten([
+        for topic in local.dlq_topics_mnpi : [
+          {
+            resource_name = topic
+            resource_type = "Topic"
+            operation     = "Write"
+          },
+          {
+            resource_name = topic
+            resource_type = "Topic"
+            operation     = "Describe"
+          },
+          {
+            resource_name = topic
+            resource_type = "Topic"
+            operation     = "Create"
+          }
+        ]
+      ]),
       [
         {
           resource_name = "connect-s3-sink-raw-mnpi-*"
@@ -170,6 +203,25 @@ module "kafka" {
             resource_name = topic
             resource_type = "Topic"
             operation     = "Describe"
+          }
+        ]
+      ]),
+      flatten([
+        for topic in local.dlq_topics_public : [
+          {
+            resource_name = topic
+            resource_type = "Topic"
+            operation     = "Write"
+          },
+          {
+            resource_name = topic
+            resource_type = "Topic"
+            operation     = "Describe"
+          },
+          {
+            resource_name = topic
+            resource_type = "Topic"
+            operation     = "Create"
           }
         ]
       ]),
